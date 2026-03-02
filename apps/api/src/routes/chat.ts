@@ -5,11 +5,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { generateEmbedding, isEmbeddingsAvailable } from '@/services/embeddings.js';
 import { type FetchUrlResult, fetchUrl } from '@/services/fetchUrl.js';
-import {
-  type FormFillResult,
-  fillMondayForm2,
-  fillMondayForm1,
-} from '@/services/formFiller.js';
+import { type FormFillResult, fillMondayForm1, fillMondayForm2 } from '@/services/formFiller.js';
 import { getSuggestionsPrompt, getSystemPrompt } from '@/services/langfuse.js';
 import { getSupabaseClient } from '@/services/supabase.js';
 import { extractContextWindows, extractDates, extractKeywords } from '@/services/textSearch.js';
@@ -181,33 +177,17 @@ const buildFillFormTool = () =>
       'IMPORTANT: You MUST present a full summary of the data to the user and receive their explicit confirmation BEFORE calling this tool. Never call this speculatively or mid-collection. ' +
       "Available forms: 'fill-monday-form-1' and 'fill-monday-form-2'.",
     inputSchema: z.object({
-      formType: z
-        .enum(['fill-monday-form-1', 'fill-monday-form-2'])
-        .describe('Which form to fill'),
-      name: z
-        .string()
-        .max(255)
-        .optional()
-        .describe('Full name of the person requesting'),
+      formType: z.enum(['fill-monday-form-1', 'fill-monday-form-2']).describe('Which form to fill'),
+      name: z.string().max(255).optional().describe('Full name of the person requesting'),
       email: z.string().email().optional().describe('Email address'),
       phone: z.string().optional().describe('Cell phone number'),
       groupSize: z
         .union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)])
         .optional()
         .describe('Total number of people in the group'),
-      memberName: z
-        .string()
-        .optional()
-        .describe('Name of the member whose record needs updating'),
-      classYear: z
-        .string()
-        .optional()
-        .describe('The class year of the member'),
-      newEmail: z
-        .string()
-        .email()
-        .optional()
-        .describe("The member's new email address"),
+      memberName: z.string().optional().describe('Name of the member whose record needs updating'),
+      classYear: z.string().optional().describe('The class year of the member'),
+      newEmail: z.string().email().optional().describe("The member's new email address"),
     }),
     execute: async (input): Promise<FormFillResult> => {
       if (input.formType === 'fill-monday-form-1') {

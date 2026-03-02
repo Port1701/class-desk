@@ -1,20 +1,20 @@
-import crypto from "node:crypto";
-import * as cheerio from "cheerio";
-import { getRedisClient, isRedisAvailable } from "@/services/redis.js";
+import crypto from 'node:crypto';
+import * as cheerio from 'cheerio';
+import { getRedisClient, isRedisAvailable } from '@/services/redis.js';
 
 const MAX_CONTENT_CHARS = 30_000;
 const FETCH_URL_CACHE_TTL_SECONDS = 3600; // 1 hour
 const FETCH_TIMEOUT_MS = 10_000; // 10 seconds
 const REMOVE_TAGS = [
-  "script",
-  "style",
-  "noscript",
-  "iframe",
-  "svg",
-  "nav",
-  "header",
-  "footer",
-  "aside",
+  'script',
+  'style',
+  'noscript',
+  'iframe',
+  'svg',
+  'nav',
+  'header',
+  'footer',
+  'aside',
 ];
 
 export interface FetchUrlResult {
@@ -36,7 +36,7 @@ interface CachedContent {
 }
 
 const getCacheKey = (url: string): string => {
-  const hash = crypto.createHash("sha256").update(url).digest("hex");
+  const hash = crypto.createHash('sha256').update(url).digest('hex');
   return `fetch_url:${hash}`;
 };
 
@@ -61,7 +61,7 @@ const getCachedContent = async (url: string): Promise<CachedContent | null> => {
   } catch (error) {
     // Silently swallow cache read errors
     console.warn(
-      `[fetchUrl] Cache read error: ${error instanceof Error ? error.message : String(error)}`
+      `[fetchUrl] Cache read error: ${error instanceof Error ? error.message : String(error)}`,
     );
     return null;
   }
@@ -84,7 +84,7 @@ const setCachedContent = async (url: string, data: CachedContent): Promise<void>
   } catch (error) {
     // Outer try-catch shouldn't be needed, but safe fallback
     console.warn(
-      `[fetchUrl] Cache write error: ${error instanceof Error ? error.message : String(error)}`
+      `[fetchUrl] Cache write error: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 };
@@ -93,7 +93,7 @@ const extractTextFromHtml = (html: string): { title: string | null; content: str
   const $ = cheerio.load(html);
 
   // Extract title
-  const title = $("title").text().trim() || null;
+  const title = $('title').text().trim() || null;
 
   // Remove unwanted tags
   REMOVE_TAGS.forEach((tag) => {
@@ -101,14 +101,14 @@ const extractTextFromHtml = (html: string): { title: string | null; content: str
   });
 
   // Extract text content
-  const content = $("body").text().trim();
+  const content = $('body').text().trim();
 
   // Collapse excessive whitespace
   const collapsed = content
     .split(/\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    .join("\n");
+    .join('\n');
 
   return { title, content: collapsed };
 };
@@ -132,9 +132,9 @@ export const fetchUrl = async (url: string): Promise<FetchUrlResult> => {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
-        "User-Agent": "ClassDesk/1.0 (AI Assistant)",
+        'User-Agent': 'ClassDesk/1.0 (AI Assistant)',
       },
-      redirect: "follow",
+      redirect: 'follow',
     });
 
     // Check for HTTP errors
@@ -142,7 +142,7 @@ export const fetchUrl = async (url: string): Promise<FetchUrlResult> => {
       return {
         url,
         title: null,
-        content: "",
+        content: '',
         contentLength: 0,
         truncated: false,
         cached: false,
@@ -151,12 +151,12 @@ export const fetchUrl = async (url: string): Promise<FetchUrlResult> => {
     }
 
     // Validate Content-Type
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
       return {
         url,
         title: null,
-        content: "",
+        content: '',
         contentLength: 0,
         truncated: false,
         cached: false,
@@ -198,11 +198,11 @@ export const fetchUrl = async (url: string): Promise<FetchUrlResult> => {
     };
   } catch (error) {
     // Handle specific error types
-    if (error instanceof DOMException && error.name === "TimeoutError") {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
       return {
         url,
         title: null,
-        content: "",
+        content: '',
         contentLength: 0,
         truncated: false,
         cached: false,
@@ -214,13 +214,13 @@ export const fetchUrl = async (url: string): Promise<FetchUrlResult> => {
     if (
       error instanceof TypeError &&
       error.cause instanceof Error &&
-      "code" in error.cause &&
-      error.cause.code === "ENOTFOUND"
+      'code' in error.cause &&
+      error.cause.code === 'ENOTFOUND'
     ) {
       return {
         url,
         title: null,
-        content: "",
+        content: '',
         contentLength: 0,
         truncated: false,
         cached: false,
@@ -232,12 +232,12 @@ export const fetchUrl = async (url: string): Promise<FetchUrlResult> => {
     if (
       error instanceof TypeError &&
       error.cause instanceof Error &&
-      (error.cause.message.includes("certificate") || error.cause.message.includes("CERT"))
+      (error.cause.message.includes('certificate') || error.cause.message.includes('CERT'))
     ) {
       return {
         url,
         title: null,
-        content: "",
+        content: '',
         contentLength: 0,
         truncated: false,
         cached: false,
@@ -250,7 +250,7 @@ export const fetchUrl = async (url: string): Promise<FetchUrlResult> => {
     return {
       url,
       title: null,
-      content: "",
+      content: '',
       contentLength: 0,
       truncated: false,
       cached: false,

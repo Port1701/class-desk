@@ -113,9 +113,7 @@ const PromptsPanel = () => {
 
   if (loading) {
     return (
-      <p className="text-sm text-primary dark:text-primary-light py-8 text-center">
-        Loading...
-      </p>
+      <p className="text-sm text-primary dark:text-primary-light py-8 text-center">Loading...</p>
     );
   }
 
@@ -123,9 +121,7 @@ const PromptsPanel = () => {
     <div className="flex gap-6 min-h-[400px]">
       {/* Prompt list */}
       <div className="w-64 flex-shrink-0">
-        <h3 className="text-sm font-medium text-primary dark:text-primary-light mb-2">
-          Prompts
-        </h3>
+        <h3 className="text-sm font-medium text-primary dark:text-primary-light mb-2">Prompts</h3>
         {error && !selectedPrompt && (
           <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>
         )}

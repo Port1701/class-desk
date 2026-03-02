@@ -14,6 +14,7 @@ ClassDesk is an AI assistant built with Next.js, Express, and Claude. It consoli
 - **🔍 Web Search**: Live internet search capability within conversations (up to 3 uses per response)
 - **🌐 URL Fetching**: Scrape and cite content from web pages with intelligent caching
 - **📋 Form Automation**: Auto-fill external forms (e.g., Monday.com) on behalf of users
+- **📧 Confirmation Emails**: Mailgun automatically sends the user a confirmation email as receipt after the AI fills out a form on their behalf
 - **🎨 Dark Mode**: Fully themed dark/light mode support with persistent preference
 - **📄 Dynamic Documentation**: Browse class documents with full-text search support
 - **💬 Conversation History**: Multi-turn conversations with context preservation
@@ -261,12 +262,12 @@ User Query
 
 ### Tool Orchestration Features
 
-✅ **Grounded Responses**: LLM must search documents before answering (no hallucinations allowed)
-✅ **Intelligent Tool Selection**: LLM decides which tools to invoke and in what order
-✅ **Streaming Support**: Web chat gets streamed responses with real-time token delivery
-✅ **Rate Limiting**: Redis-based rate limiting (10 msgs/60s per user)
-✅ **Error Resilience**: Graceful fallbacks if embeddings or services unavailable
-✅ **Privacy**: Form submissions handled server-side, tokens never exposed to client
+- **Grounded Responses**: LLM must search documents before answering (no hallucinations allowed)
+- **Intelligent Tool Selection**: LLM decides which tools to invoke and in what order
+- **Streaming Support**: Web chat gets streamed responses with real-time token delivery
+- **Rate Limiting**: Redis-based rate limiting (10 msgs/60s per user)
+- **Error Resilience**: Graceful fallbacks if embeddings or services unavailable
+- **Privacy**: Form submissions handled server-side, tokens never exposed to client
 
 ## API Endpoints
 

@@ -29,6 +29,7 @@ import {
   stripToolMarkers,
   type ToolStatus,
 } from '@/lib/textProcessing';
+
 const SUGGESTIONS = [
   'When is the 5th Reunion?',
   'How do I register?',
