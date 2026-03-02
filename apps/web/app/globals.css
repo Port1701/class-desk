@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light mode - default */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  color-scheme: light;
+}
+
+/* Dark mode - when dark class is applied */
+:root.dark {
+  --background: #111827;
+  --foreground: #f3f4f6;
+  color-scheme: dark;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dark mode: subtle directional gradient instead of flat gray */
+:root.dark body {
+  background: linear-gradient(135deg, #0d1117 0%, #111827 50%, #0f172a 100%);
+  background-attachment: fixed;
+}
+
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .animate-blink {
+    animation: blink 1s infinite;
+  }
+}
+
+.citation-btn {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0 0.25em;
+  border-radius: 3px;
+  background: rgba(0, 53, 107, 0.1);
+  color: #00356b;
+  text-decoration: none;
+  line-height: 1.4;
+}
+.citation-btn:hover {
+  background: rgba(0, 53, 107, 0.2);
+}
+:root.dark .citation-btn {
+  background: rgba(147, 197, 253, 0.15);
+  color: #93c5fd;
+}
+:root.dark .citation-btn:hover {
+  background: rgba(147, 197, 253, 0.25);
+}

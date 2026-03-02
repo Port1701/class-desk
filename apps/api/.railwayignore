@@ -1,0 +1,37 @@
+# Version control
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Node development
+node_modules/
+.npm
+*debug.log
+
+# Local environment files
+.env.local
+.env.development
+.env.test
+
+# Source (compiled output in dist/ is what we deploy)
+src/
+supabase/migrations/
+
+# TypeScript cache
+.ts-node/
+*.tsbuildinfo
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Logs
+*.log
