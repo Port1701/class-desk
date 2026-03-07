@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Tables } from '@/../../supabase/types.js';
-import { authenticateToken, requireAdmin } from '@/middleware/auth.js';
+import { authenticateToken, requireAdmin, requireAdminOrInternal } from '@/middleware/auth.js';
 import { generateEmbedding, isEmbeddingsAvailable } from '@/services/embeddings.js';
 import { getSupabaseClient } from '@/services/supabase.js';
 import {
@@ -121,7 +121,6 @@ const upsertChunks = async (
   return { inserted, failed };
 };
 
-router.use(authenticateToken, requireAdmin);
 
 const mapDocumentResponse = (row: DocumentRow): DocumentResponse => ({
   id: row.id,
@@ -136,7 +135,7 @@ const mapDocumentResponse = (row: DocumentRow): DocumentResponse => ({
 });
 
 // POST /embed-all — Re-embed all documents
-router.post('/embed-all', async (_req, res, next) => {
+router.post('/embed-all', authenticateToken, requireAdminOrInternal, async (_req, res, next) => {
   try {
     if (!isEmbeddingsAvailable()) {
       return res.status(503).json({ error: 'Embeddings service not available' });
@@ -191,7 +190,7 @@ router.post('/embed-all', async (_req, res, next) => {
 });
 
 // POST / — Create document
-router.post('/', async (req, res, next) => {
+router.post('/', authenticateToken, requireAdmin, async (req, res, next) => {
   try {
     const body = CreateDocumentSchema.parse(req.body);
     const supabase = getSupabaseClient();
@@ -239,7 +238,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // GET / — List documents
-router.get('/', async (req, res, next) => {
+router.get('/', authenticateToken, requireAdmin, async (req, res, next) => {
   try {
     const query = DocumentListQuerySchema.parse(req.query);
     const supabase = getSupabaseClient();
@@ -305,7 +304,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // PUT /:id — Update document
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', authenticateToken, requireAdmin, async (req, res, next) => {
   try {
     const { id } = DocumentParamsSchema.parse(req.params);
     const body = UpdateDocumentSchema.parse(req.body);
@@ -384,7 +383,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // DELETE /:id — Delete document
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', authenticateToken, requireAdmin, async (req, res, next) => {
   try {
     const { id } = DocumentParamsSchema.parse(req.params);
     const supabase = getSupabaseClient();
@@ -410,7 +409,7 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // POST /:id/embed — Manual re-embed
-router.post('/:id/embed', async (req, res, next) => {
+router.post('/:id/embed', authenticateToken, requireAdminOrInternal, async (req, res, next) => {
   try {
     const { id } = DocumentParamsSchema.parse(req.params);
 

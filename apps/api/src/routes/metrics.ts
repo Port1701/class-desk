@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { authenticateToken, requireAdmin } from '@/middleware/auth.js';
+import { authenticateToken, requireAdminOrInternal } from '@/middleware/auth.js';
 import { getLangfuse, isLangfuseAvailable } from '@/services/langfuse.js';
 
 const router = Router();
 
-router.use(authenticateToken, requireAdmin);
+router.use(authenticateToken, requireAdminOrInternal);
 
 // GET /daily — Daily conversation and generation counts
 router.get('/daily', async (req, res, next) => {
