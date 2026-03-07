@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { getAdminEmails as getEnvAdminEmails } from '@/config/environment.js';
+import { getAdminEmails as getEnvAdminEmails, getInternalApiKey } from '@/config/environment.js';
 import { getSupabaseClient } from '@/services/supabase.js';
 
 declare global {
@@ -10,6 +10,7 @@ declare global {
         email: string;
         isAdmin: boolean;
       };
+      internal?: boolean;  // true for authenticated internal service requests
     }
   }
 }
@@ -55,6 +56,19 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return next();
     }
 
+    // Check for internal API key (service-to-service auth)
+    const internalApiKey = getInternalApiKey();
+    const rawInternalHeader = req.headers['x-internal-api-key'];
+    const providedKey = Array.isArray(rawInternalHeader) ? rawInternalHeader[0] : rawInternalHeader;
+
+    if (providedKey !== undefined) {
+      if (internalApiKey && providedKey === internalApiKey) {
+        req.internal = true;
+        return next();
+      }
+      return res.status(401).json({ error: 'Invalid internal API key' });
+    }
+
     // Extract bearer token
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -95,6 +109,12 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
+};
+
+export const requireAdminOrInternal = (req: Request, res: Response, next: NextFunction) => {
+  if (req.internal === true) return next();
+  if (req.user?.isAdmin) return next();
+  return res.status(403).json({ error: 'Admin or internal service access required' });
 };
 
 export const invalidateAdminCache = () => {

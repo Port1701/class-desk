@@ -19,6 +19,7 @@ const EnvironmentSchema = z.object({
   LANGFUSE_SECRET_KEY: z.string().optional(),
   LANGFUSE_BASE_URL: z.url().optional(),
   ADMIN_EMAILS: z.string().optional().default(''),
+  INTERNAL_API_KEY: z.string().optional(),
 });
 
 let environment: z.infer<typeof EnvironmentSchema> | null = null;
@@ -56,6 +57,10 @@ export const getAdminEmails = (): string[] => {
   return env.ADMIN_EMAILS.split(',')
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
+};
+
+export const getInternalApiKey = (): string | undefined => {
+  return getEnvironment().INTERNAL_API_KEY || undefined;
 };
 
 export default getEnvironment();
