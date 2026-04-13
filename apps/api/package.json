@@ -13,7 +13,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.45",
     "@ai-sdk/openai": "^3.0.29",
-    "@langfuse/otel": "^4.6.1",
+    "@langfuse/otel": "^5.1.0",
     "@langfuse/tracing": "^4.6.1",
     "@opentelemetry/sdk-node": "^0.212.0",
     "@supabase/supabase-js": "^2.96.0",
