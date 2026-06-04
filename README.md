@@ -391,6 +391,7 @@ User Query
 ├── vercel.json               # Vercel frontend deployment config
 ├── package.json              # Root monorepo scripts (lint, format, build, typecheck)
 ├── biome.json                # Linting and formatting configuration
+├── renovate.json             # Renovate automated dependency updates
 └── README.md                 # This file
 ```
 
