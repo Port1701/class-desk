@@ -22,7 +22,7 @@ ClassDesk is a generic, open-source AI assistant template built with Next.js (fr
 
 - **Deployment**:
   - Frontend: Vercel (auto-configured via vercel.json)
-  - Backend: Railway (auto-configured via railway.json)
+  - Backend: Railway (infrastructure as code in `.railway/railway.ts`)
 
 ### Development Philosophy
 
@@ -120,14 +120,15 @@ apps/api/
 ├── supabase/
 │   ├── types.ts          # Generated Supabase types
 │   └── migrations/       # SQL migrations
-├── railway.json          # Railway deployment config
-├── nixpacks.toml         # Build configuration
+├── nixpacks.toml         # Nixpacks build phases (the builder .railway/railway.ts selects)
 └── .env.example          # Environment variable template
 ```
 
 **Root:**
 
 ```
+.railway/railway.ts    # Railway infrastructure as code: API service, Redis, variable names
+.railway/railway.test.ts  # Compiles railway.ts and pins the rendered shape (npm test)
 vercel.json            # Vercel deployment config for frontend
 .vercelignore          # Vercel ignore patterns
 ```
@@ -260,72 +261,37 @@ The `vercel.json` at the root is configured for:
 
 ### Railway (Backend)
 
-Each service under `apps/` can be deployed independently with its own configuration files:
+Railway is configured as **infrastructure as code**: `.railway/railway.ts` (repo root) declares every service, database, volume, and variable name in a Railway environment, and `railway config` diffs it against the linked project. There is no `railway.json` or `railway.toml`: Railway's config-as-code is deprecated, stops being read on 2026-12-01, and a service cannot be owned by both systems at once, so never add one back.
 
-- `railway.json` - Deployment configuration
-- `.railwayignore` - Files to exclude from deployment
-- `nixpacks.toml` - Build configuration
-- `.env.example` - Environment variable template
+**What the file declares:**
 
-**Setup for API service:**
+- `API`: built from root directory `apps/api` with the `NIXPACKS` builder, so `apps/api/nixpacks.toml` keeps driving the build phases and `apps/api/.railwayignore` still applies; start command `node dist/src/index.js`; healthcheck `/health` with a 100 s timeout; restart `ON_FAILURE`, at most 10 retries (a graceful `SIGTERM` exits 0, so only a crash restarts).
+- `Redis`: a `database()` node running the official `redis` image with its volume on `/data`, the shape the dashboard's "Add Redis" provisions. The `redis()` helper provisions a different image and mount path, and a `service()` with the same image plans as delete-and-recreate, so use neither. The volume is not declared: Railway's database provisioning owns it, and a `volume()` line plans the live volume's region and size to whatever the file says.
+- Every dashboard variable, by name, `preserve()`d in `API_VARIABLES`: the value stays in Railway and never enters the repo. A listed name with no value in Railway plans nothing, so optional variables are listed too. `REDIS_URL` is a reference to the Redis node rather than a preserved value.
 
-1. Create new Railway service
-2. Connect repository (via GitHub integration)
-3. **Important: Set the root directory to `/apps/api`** in Railway service settings
-   - Go to Service Settings → General
-   - Set "Root Directory" to `/apps/api` (with leading slash)
-   - This tells Railway where to find `railway.json` and `package.json`
-4. Railway will detect `railway.json` and `nixpacks.toml` in the `apps/api` directory
-5. Add Redis plugin: Click "New" → "Database" → "Add Redis"
-   - Railway will automatically set the `REDIS_URL` environment variable
-6. Set all required environment variables in Railway dashboard:
-   - **Supabase**: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
-   - **AI/LLM**: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
-   - **Observability**: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`
-   - **Email**: `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`
-   - **Networking**: `CORS_ORIGINS`
-7. Deploy
+**Omit means delete.** A service, custom domain, or variable that exists in Railway but is absent from the file is destroyed on apply. Adding a variable in the dashboard means adding its name to `API_VARIABLES`; `railway config plan` reports the miss as `Delete variable API.<NAME>` and flags it destructive. Treat that line as a missing list entry, never as something to confirm past.
 
-**Why per-service configuration:**
+**Environments are declared, never inferred.** `ENVIRONMENTS` and `BRANCH_BY_ENVIRONMENT` map each Railway environment to the branch it deploys (`production` → `main`). Planning an undeclared environment throws instead of rendering another environment's branch; add the entry before creating the environment in Railway.
 
-- Each service has its own dependencies and configuration
-- Services can be deployed and scaled independently
-- Easy to add new services without affecting existing ones
-- Clear separation of concerns
+**The workflow:**
+
+1. Edit `.railway/railway.ts`. `npm run typecheck` covers it (`typecheck:iac` runs `apps/api`'s TypeScript against `.railway/tsconfig.json`; the `railway` root devDependency supplies the `railway/iac` types), Biome lints and formats it, and `npm test` runs `.railway/railway.test.ts`, which compiles the file and pins the rendered shape. Extend that test whenever the file changes.
+2. `npm run iac:plan` (`railway config plan`) diffs the file against the **linked** environment: `railway link` chooses the project and environment, `railway environment <name>` retargets it, and the plan header names which environment answered. A clean file plans `0 to add, 0 to change, 0 to destroy`. The engine evaluates the file as an ES module, so a `"type": "commonjs"` in the nearest `package.json` breaks it; the root `package.json` has no `type` field on purpose.
+3. `railway config apply` lands it. That is the engineer's action, never an agent's: the read-only guard allows `config plan` and denies `pull`, `migrate`, `init`, `apply`, and `link`, so an agent's deliverable is the file, the passing test, and plan output.
+
+**Setup for a fresh Railway project:**
+
+1. Create the project, connect the repository through the GitHub integration, and `railway link` your checkout to it.
+2. Point `REPO` in `.railway/railway.ts` at your fork.
+3. `railway config plan`, read what it proposes to create, then `railway config apply`.
+4. Set every variable VALUE on the `API` service in the dashboard (README → Backend (Railway) lists them); the file preserves names only.
+5. Re-run the plan and expect it clean. Leave the service's "Railway Config File" setting empty.
 
 ### Adding More Services
 
-To add additional backend services:
-
-1. Create new service directory under `apps/` (e.g., `apps/worker/`)
-2. Add service-specific configuration files:
-   - `railway.json` - Deployment config
-   - `.railwayignore` - Exclude patterns
-   - `nixpacks.toml` - Build config
-   - `package.json` - Node.js dependencies
-   - `.env.example` - Environment template
-3. Create new Railway service in your project
-4. Connect same repository
-5. **Important: Set root directory to `/apps/worker`** in Railway settings (with leading slash)
-6. Deploy independently
-
-**Example multi-service structure:**
-
-```
-apps/
-├── api/              # REST API (Node.js)
-│   ├── railway.json
-│   ├── package.json
-│   └── ...
-├── worker/           # Background jobs (Node.js)
-│   ├── railway.json
-│   ├── package.json
-│   └── ...
-└── websocket/        # WebSocket server (Node.js)
-    ├── railway.json
-    ├── package.json
-    └── ...
-```
+1. Create its directory under `apps/` (e.g. `apps/worker/`) with `package.json` + lockfile, `.railwayignore`, `.env.example`, and a `nixpacks.toml` (or a `Dockerfile`, with `builder: 'DOCKERFILE'` and `dockerfilePath`).
+2. Declare it in `.railway/railway.ts`: `service('<Name>', { source: github(REPO, { branch, rootDirectory: 'apps/<dir>' }), build: { builder: 'NIXPACKS' }, start, env: preserveAll([...]) })`, and add it to the project's `resources`.
+3. Extend `.railway/railway.test.ts` to pin it, run `npm run iac:plan`, read the diff, and hand it to the engineer to apply.
 
 ## Project-Specific Patterns
 
