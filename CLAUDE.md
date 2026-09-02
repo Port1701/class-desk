@@ -120,7 +120,7 @@ apps/api/
 ├── supabase/
 │   ├── types.ts          # Generated Supabase types
 │   └── migrations/       # SQL migrations
-├── nixpacks.toml         # Nixpacks build phases (the builder .railway/railway.ts selects)
+├── nixpacks.toml         # Nixpacks build phases (the builder .railway/railway.ts selects; no start command)
 └── .env.example          # Environment variable template
 ```
 
@@ -128,7 +128,7 @@ apps/api/
 
 ```
 .railway/railway.ts    # Railway infrastructure as code: API service, Redis, variable names
-.railway/railway.test.ts  # Compiles railway.ts and pins the rendered shape (npm test)
+.railway/railway.test.ts # Compiles railway.ts and pins the rendered shape (npm test)
 vercel.json            # Vercel deployment config for frontend
 .vercelignore          # Vercel ignore patterns
 ```
@@ -265,7 +265,7 @@ Railway is configured as **infrastructure as code**: `.railway/railway.ts` (repo
 
 **What the file declares:**
 
-- `API`: built from root directory `apps/api` with the `NIXPACKS` builder, so `apps/api/nixpacks.toml` keeps driving the build phases and `apps/api/.railwayignore` still applies; start command `node dist/src/index.js`; healthcheck `/health` with a 100 s timeout; restart `ON_FAILURE`, at most 10 retries (a graceful `SIGTERM` exits 0, so only a crash restarts).
+- `API`: built from root directory `apps/api` with the `NIXPACKS` builder, so `apps/api/nixpacks.toml` keeps driving the build phases and `apps/api/.railwayignore` still applies; start command `node dist/src/index.js`, declared here and nowhere else; healthcheck `/health` with a 100 s timeout; restart `ON_FAILURE`, at most 10 retries (a graceful `SIGTERM` exits 0, so only a crash restarts).
 - `Redis`: a `database()` node running the official `redis` image with its volume on `/data`, the shape the dashboard's "Add Redis" provisions. The `redis()` helper provisions a different image and mount path, and a `service()` with the same image plans as delete-and-recreate, so use neither. The volume is not declared: Railway's database provisioning owns it, and a `volume()` line plans the live volume's region and size to whatever the file says.
 - Every dashboard variable, by name, `preserve()`d in `API_VARIABLES`: the value stays in Railway and never enters the repo. A listed name with no value in Railway plans nothing, so optional variables are listed too. `REDIS_URL` is a reference to the Redis node rather than a preserved value.
 
@@ -277,7 +277,7 @@ Railway is configured as **infrastructure as code**: `.railway/railway.ts` (repo
 
 1. Edit `.railway/railway.ts`. `npm run typecheck` covers it (`typecheck:iac` runs `apps/api`'s TypeScript against `.railway/tsconfig.json`; the `railway` root devDependency supplies the `railway/iac` types), Biome lints and formats it, and `npm test` runs `.railway/railway.test.ts`, which compiles the file and pins the rendered shape. Extend that test whenever the file changes.
 2. `npm run iac:plan` (`railway config plan`) diffs the file against the **linked** environment: `railway link` chooses the project and environment, `railway environment <name>` retargets it, and the plan header names which environment answered. A clean file plans `0 to add, 0 to change, 0 to destroy`. The engine evaluates the file as an ES module, so a `"type": "commonjs"` in the nearest `package.json` breaks it; the root `package.json` has no `type` field on purpose.
-3. `railway config apply` lands it. That is the engineer's action, never an agent's: the read-only guard allows `config plan` and denies `pull`, `migrate`, `init`, `apply`, and `link`, so an agent's deliverable is the file, the passing test, and plan output.
+3. `railway config apply` lands it, after a person has read the plan. An agent's deliverable is the file, the passing test, and the plan output, never the apply.
 
 **Setup for a fresh Railway project:**
 

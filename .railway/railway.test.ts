@@ -10,14 +10,15 @@ import {
   type DatabaseNode,
   type ProjectDefinition,
   project,
+  type RailwayContextInput,
   type ResourceNode,
   type ServiceNode,
 } from 'railway/iac';
 import { describe, expect, it } from 'vitest';
 import program from './railway';
 
-const compile = async (environment: string, projectName?: string): Promise<ProjectDefinition> =>
-  await program(createRailwayContext({ command: 'plan', environment, projectName }), project);
+const compile = async (input: RailwayContextInput): Promise<ProjectDefinition> =>
+  await program(createRailwayContext({ command: 'plan', ...input }), project);
 
 const listResources = (definition: ProjectDefinition): ResourceNode[] =>
   (definition.resources ?? []).flat();
@@ -40,21 +41,27 @@ const findDatabase = (definition: ProjectDefinition, name: string): DatabaseNode
 
 describe('.railway/railway.ts', () => {
   it('refuses an environment it does not describe', async () => {
-    await expect(compile('staging')).rejects.toThrow(/does not describe environment "staging"/);
+    await expect(compile({ environment: 'staging' })).rejects.toThrow(
+      /does not describe environment "staging"/,
+    );
+  });
+
+  it('refuses a context with no environment at all', async () => {
+    await expect(compile({})).rejects.toThrow(/does not describe environment "\(none\)"/);
   });
 
   it('declares the API and Redis under the linked project name', async () => {
-    const definition = await compile('production', 'My Fork');
+    const definition = await compile({ environment: 'production', projectName: 'My Fork' });
     const addresses = listResources(definition)
       .map((r) => r.address)
       .sort();
     expect(addresses).toEqual(['database.Redis', 'service.API']);
     expect(definition.name).toBe('My Fork');
-    expect((await compile('production')).name).toBe('ClassDesk');
+    expect((await compile({ environment: 'production' })).name).toBe('ClassDesk');
   });
 
   it('carries the settings apps/api/railway.json used to hold', async () => {
-    const api = findService(await compile('production'), 'API');
+    const api = findService(await compile({ environment: 'production' }), 'API');
     expect(api.source).toMatchObject({
       type: 'github',
       repo: 'Port1701/class-desk',
@@ -72,7 +79,7 @@ describe('.railway/railway.ts', () => {
   });
 
   it('preserves every dashboard variable by name and wires REDIS_URL to Redis', async () => {
-    const api = findService(await compile('production'), 'API');
+    const api = findService(await compile({ environment: 'production' }), 'API');
     const variables = api.variables ?? {};
     const { REDIS_URL, ...preserved } = variables;
     expect(REDIS_URL).toEqual({
@@ -87,7 +94,7 @@ describe('.railway/railway.ts', () => {
   });
 
   it('models Redis as the database resource the dashboard provisions', async () => {
-    const redis = findDatabase(await compile('production'), 'Redis');
+    const redis = findDatabase(await compile({ environment: 'production' }), 'Redis');
     expect(redis).toMatchObject({
       engine: 'redis',
       image: 'redis:8.2.1',
