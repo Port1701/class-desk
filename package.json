@@ -4,12 +4,15 @@
   "description": "ClassDesk monorepo - generic open-source AI assistant template",
   "private": true,
   "scripts": {
-    "typecheck": "npm run typecheck:api && npm run typecheck:web",
+    "typecheck": "npm run typecheck:api && npm run typecheck:web && npm run typecheck:iac",
     "typecheck:api": "cd apps/api && npx tsc --noEmit",
     "typecheck:web": "cd apps/web && npx tsc --noEmit",
+    "typecheck:iac": "cd apps/api && npx tsc --noEmit -p ../../.railway/tsconfig.json",
     "build": "npm run build:api && npm run build:web",
     "build:api": "cd apps/api && npm run build",
     "build:web": "cd apps/web && npm run build",
+    "test": "vitest run",
+    "iac:plan": "railway config plan",
     "lint": "npm run lint:js && npm run lint:shell",
     "lint:check": "npm run lint:js:check && npm run lint:shell:check",
     "lint:js": "biome check --write --no-errors-on-unmatched .",
@@ -32,6 +35,8 @@
     "@biomejs/biome": "2.4.11",
     "husky": "^9.1.7",
     "prettier": "^3.8.2",
-    "sql-formatter": "15.7.3"
+    "railway": "^3.11.0",
+    "sql-formatter": "15.7.3",
+    "vitest": "^4.1.11"
   }
 }

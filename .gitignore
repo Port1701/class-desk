@@ -33,7 +33,6 @@ postgres_password.txt
 
 # Cloud Provider Credentials
 .supabase/
-.railway/
 .vercel
 
 lib/
@@ -238,8 +237,7 @@ temp/
 # ============================================
 # DEPLOYMENT & INFRASTRUCTURE
 # ============================================
-# Railway
-.railway/
+# Railway: .railway/railway.ts is committed infrastructure as code; link state lives in ~/.railway
 
 # Vercel
 .vercel

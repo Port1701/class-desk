@@ -7,5 +7,4 @@ cmds = ["npm ci", "npx playwright install --with-deps chromium"]
 [phases.build]
 cmds = ["npm run build"]
 
-[start]
-cmd = "node dist/src/index.js"
+# No [start]: the start command is declared once, in .railway/railway.ts.

@@ -380,7 +380,6 @@ User Query
 │       │   └── migrations/   # SQL migrations for schema changes
 │       ├── package.json
 │       ├── tsconfig.json
-│       ├── railway.json      # Railway deployment config
 │       ├── .env.example      # Environment variable template
 │       └── .railwayignore
 │
@@ -388,8 +387,9 @@ User Query
 │   └── AGENTS_APPENDLOG.md   # Decision log for architectural choices
 ├── CLAUDE.md                 # AI-assisted development guidelines
 ├── AGENTS.md                 # Universal agent entry point
+├── .railway/railway.ts       # Railway infrastructure as code (API service, Redis, variable names)
 ├── vercel.json               # Vercel frontend deployment config
-├── package.json              # Root monorepo scripts (lint, format, build, typecheck)
+├── package.json              # Root monorepo scripts (lint, format, build, typecheck, test, iac:plan)
 ├── biome.json                # Linting and formatting configuration
 ├── renovate.json             # Renovate automated dependency updates
 └── README.md                 # This file
@@ -519,20 +519,16 @@ The `vercel.json` is configured to:
 
 ### Backend (Railway)
 
-Each service under `apps/` can be deployed independently to Railway.
+Railway is configured as infrastructure as code: `.railway/railway.ts` at the repo root declares the `API` service (root directory `apps/api`, Nixpacks build driven by `apps/api/nixpacks.toml`, the start command, a `/health` healthcheck, restart on failure), the `Redis` database it depends on, and the name of every dashboard variable. `npm run iac:plan` previews the diff against your linked Railway project and `railway config apply` lands it. Railway's `railway.json` config-as-code is deprecated and stops being read on 2026-12-01, so this repo has none.
 
 **Deploying the API service:**
 
-1. Create a new service in Railway
-2. Connect your repository (via GitHub integration)
-3. **Important: Set the root directory to `/apps/api`** in Railway service settings
-   - Go to Service Settings → General
-   - Set "Root Directory" to `/apps/api`
-   - This tells Railway where to find `railway.json` and `package.json`
-4. Railway will automatically detect `railway.json` and `nixpacks.toml` in the `apps/api` directory
-5. **Add Redis plugin**: Click "New" → "Database" → "Add Redis"
-   - Railway will automatically set the `REDIS_URL` environment variable
-6. **Set all required environment variables** in Railway dashboard:
+1. Install the [Railway CLI](https://docs.railway.com/cli) and run `railway login`
+2. Create a Railway project and connect this repository (via the GitHub integration)
+3. `railway link` your checkout to that project and its `production` environment
+4. Point `REPO` in `.railway/railway.ts` at your fork
+5. `npm run iac:plan` to preview, then `railway config apply` to create the `API` service and the `Redis` database (`REDIS_URL` is wired to it)
+6. **Set all required environment variables** in the Railway dashboard on the `API` service. The file lists their names and preserves whatever value is set; values never live in the repo:
    - **Supabase**:
      - `SUPABASE_URL`: Your Supabase project URL
      - `SUPABASE_SECRET_KEY`: Your Supabase secret key
@@ -549,6 +545,9 @@ Each service under `apps/` can be deployed independently to Railway.
      - `MAILGUN_FROM`: Sender address (e.g., "ClassDesk <noreply@example.com>")
    - **Networking**:
      - `CORS_ORIGINS`: Comma-separated allowed frontend origins (e.g., https://example.com,https://www.example.com)
+7. Re-run `npm run iac:plan` and expect `0 to add, 0 to change, 0 to destroy`; Railway then deploys on every push to `main`
+
+A variable added in the dashboard must also be added to `API_VARIABLES` in `.railway/railway.ts`, or the next plan proposes deleting it.
 
 #### Email Setup (Mailgun)
 
@@ -566,7 +565,7 @@ To enable email functionality:
 5. **Set environment variables** in Railway dashboard with the values from above
 6. Deploy
 
-The `railway.json` is configured for:
+`.railway/railway.ts` configures the API service for:
 
 - Automatic health checks at `/health`
 - Automatic restarts on failure
@@ -663,19 +662,13 @@ When working with AI assistants, they should:
 
 ### Testing
 
-Frontend:
+Tests are [Vitest](https://vitest.dev) files named `*.test.ts`, run from the repo root:
 
 ```bash
-cd apps/web
 npm test
 ```
 
-Backend:
-
-```bash
-cd apps/api
-npm test
-```
+`.railway/railway.test.ts` compiles the Railway infrastructure-as-code file and pins the shape it renders.
 
 ## Troubleshooting
 
