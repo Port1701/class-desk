@@ -40,3 +40,10 @@ This file tracks all significant decisions, implementations, and learnings throu
 **Impact:** No deployed change until an engineer runs `railway link`, `npm run iac:plan`, and `railway config apply`. Root devDependencies gain `railway` and `vitest`.
 **Time Spent:** ~1.5 hours
 **Learnings:** The CLI evaluates the file as an ES module, so a `"type": "commonjs"` in the nearest package.json breaks planning. Omit means delete for services, domains, and variables, but a `preserve()`d name with no value in Railway plans nothing. Top-level `healthcheck`/`healthcheckTimeout` merge into `deploy`. Verified read-only by planning a scratch copy against a linked sibling project's dev environment; nothing was applied.
+
+## 2026-09-23 14:32 PT - Remove Renovate
+
+**Type:** Decision
+**Change:** Deleted root `renovate.json` and removed its entry from the README's project-structure tree.
+**Context:** User requested uninstalling Renovate from every repo they had installed it in.
+**Impact:** No automated dependency-update PRs. The Renovate GitHub App installation is removed separately in GitHub settings; deleting the config alone does not uninstall the app.
