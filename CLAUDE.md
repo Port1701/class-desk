@@ -9,7 +9,7 @@ ClassDesk is a generic, open-source AI assistant template built with Next.js (fr
 ### Tech Stack
 
 - **Frontend**:
-  - Next.js 15+ (App Router, React Server Components)
+  - Next.js 16+ (App Router, React Server Components)
   - React 19
   - TypeScript 5+
   - Tailwind CSS
