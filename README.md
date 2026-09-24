@@ -32,7 +32,7 @@ ClassDesk is an AI assistant built with Next.js, Express, and Claude. It consoli
 
 ### Technical Features
 
-- **⚡ Modern Frontend**: Next.js 15+ with React 19, TypeScript 5+, and Tailwind CSS
+- **⚡ Modern Frontend**: Next.js 16+ with React 19, TypeScript 5+, and Tailwind CSS
 - **🚀 Robust Backend**: Express 5 with Node.js, TypeScript, and async/await support
 - **🛡️ Type Safety**: Zod validation for all API requests and responses
 - **💾 Database**: Supabase PostgreSQL with pgvector for embeddings
@@ -306,7 +306,7 @@ User Query
 
 ### Frontend
 
-- **Framework**: Next.js 15+
+- **Framework**: Next.js 16+
 - **UI Library**: React 19
 - **Language**: TypeScript 5+
 - **Styling**: Tailwind CSS
