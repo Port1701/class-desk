@@ -398,7 +398,7 @@ User Query
 
 ### Prerequisites
 
-- Node.js 24.0.0 or higher
+- Node.js 24.22.1 or higher
 - npm or yarn
 - [Supabase account](https://supabase.com) (free tier available)
 
