@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "typecheck": "npm run typecheck:api && npm run typecheck:web && npm run typecheck:iac",
-    "typecheck:api": "cd apps/api && npx tsc --noEmit",
+    "typecheck:api": "cd apps/api && npx tsc --noEmit && npx tsc -p tests/tsconfig.json",
     "typecheck:web": "cd apps/web && npx tsc --noEmit",
     "typecheck:iac": "cd apps/api && npx tsc --noEmit -p ../../.railway/tsconfig.json",
     "build": "npm run build:api && npm run build:web",
@@ -32,14 +32,14 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
+    "@biomejs/biome": "2.6.2",
     "husky": "^9.1.7",
-    "prettier": "^3.9.9",
-    "railway": "^3.11.0",
+    "prettier": "^3.9.10",
+    "railway": "^3.16.0",
     "sql-formatter": "15.9.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.22.1"
   }
 }

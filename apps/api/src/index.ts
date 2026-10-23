@@ -1,5 +1,6 @@
 import express from 'express';
 import { getEnvironment } from '@/config/environment.js';
+import { applyBodyParsing } from '@/middleware/bodyParsing.js';
 import corsMiddleware from '@/middleware/cors.js';
 import { errorHandler } from '@/middleware/errorHandler.js';
 import adminEmailsRouter from '@/routes/admin-emails.js';
@@ -23,8 +24,7 @@ const env = getEnvironment();
 app.set('trust proxy', 1);
 
 // Body parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+applyBodyParsing(app);
 
 // CORS
 app.use(corsMiddleware);
