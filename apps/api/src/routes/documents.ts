@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { Tables } from '@/../../supabase/types.js';
+import type { Tables, TablesUpdate } from '@/../../supabase/types.js';
 import { authenticateToken, requireAdmin, requireAdminOrInternal } from '@/middleware/auth.js';
 import { generateEmbedding, isEmbeddingsAvailable } from '@/services/embeddings.js';
 import { getSupabaseClient } from '@/services/supabase.js';
@@ -120,7 +120,6 @@ const upsertChunks = async (
   }
   return { inserted, failed };
 };
-
 
 const mapDocumentResponse = (row: DocumentRow): DocumentResponse => ({
   id: row.id,
@@ -313,7 +312,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res, next) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    const updateData: Record<string, unknown> = {};
+    const updateData: TablesUpdate<'documents'> = {};
     if (body.title !== undefined) updateData.title = body.title;
     if (body.content !== undefined) updateData.content = body.content;
     if (body.category !== undefined) updateData.category = body.category;
