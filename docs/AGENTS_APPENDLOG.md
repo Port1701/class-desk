@@ -47,3 +47,13 @@ This file tracks all significant decisions, implementations, and learnings throu
 **Change:** Deleted root `renovate.json` and removed its entry from the README's project-structure tree.
 **Context:** User requested uninstalling Renovate from every repo they had installed it in.
 **Impact:** No automated dependency-update PRs. The Renovate GitHub App installation is removed separately in GitHub settings; deleting the config alone does not uninstall the app.
+
+## 2026-10-22 22:37 PT - Safe dependency upgrades for the October 2026 advisories
+
+**Type:** Implementation
+**Change:** Patch/minor upgrades across the root, `apps/api`, and `apps/web` manifests (next 16.4.2, react/react-dom 19.3.1, express 5.3.0, biome 2.6.2 with its `biome.json` schema, plus 19 others), lockfiles refreshed, and non-forced `npm audit fix` applied to both apps.
+**Context:** Next.js (Oct 14: two critical RCEs and a Server Actions DoS, fixed in 16.4.1), sharp/librsvg (fixed in 0.35.5), and body-parser (Oct 22, CVE-2026-111181, fixed in 2.4.0) all published advisories affecting resolved packages.
+**Rationale:** Every in-range fix was taken; nothing crossed a major. `npm audit` moved root 4→0, api 40→31, web 26→11, with zero criticals left.
+**Alternatives Considered:** Forcing the remaining fixes. Each needs a major or overriding an upstream exact pin (`protobufjs@8.0.1` under `@langfuse/otel` → `@opentelemetry/otlp-transformer@0.217.0`; tsc-alias, tailwind 4, eslint-config-next), so they are left as separate changes.
+**Impact:** The Node.js Oct 21 release (CVE-2026-111497 and six others on 24.x) is a runtime fix outside the lockfile: deploys need Node 24.22.1 or later.
+**Learnings:** Re-check resolved transitive versions after a Next.js security bump: the patched `next` still accepts an older `sharp`, so the lockfile decides whether the image fix is actually in.
