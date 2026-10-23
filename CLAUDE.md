@@ -120,6 +120,8 @@ apps/api/
 ├── supabase/
 │   ├── types.ts          # Generated Supabase types
 │   └── migrations/       # SQL migrations
+├── tests/                # Vitest tests, outside src/ so the Railway build never compiles them
+├── vitest.config.ts      # `@/` alias for tests (the `api` project of the root config)
 ├── nixpacks.toml         # Nixpacks build phases (the builder .railway/railway.ts selects; no start command)
 └── .env.example          # Environment variable template
 ```
@@ -129,6 +131,7 @@ apps/api/
 ```
 .railway/railway.ts    # Railway infrastructure as code: API service, Redis, variable names
 .railway/railway.test.ts # Compiles railway.ts and pins the rendered shape (npm test)
+vitest.config.mts      # One Vitest project per unit (`iac`, `api`), each with its own aliases
 vercel.json            # Vercel deployment config for frontend
 .vercelignore          # Vercel ignore patterns
 ```
