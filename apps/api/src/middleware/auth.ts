@@ -10,7 +10,7 @@ declare global {
         email: string;
         isAdmin: boolean;
       };
-      internal?: boolean;  // true for authenticated internal service requests
+      internal?: boolean; // true for authenticated internal service requests
     }
   }
 }
