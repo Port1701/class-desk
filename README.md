@@ -358,7 +358,7 @@ User Query
 │       ├── src/
 │       │   ├── index.ts      # Express app and server startup
 │       │   ├── config/       # Environment validation with Zod
-│       │   ├── middleware/   # CORS, auth, error handling
+│       │   ├── middleware/   # Body parsing, CORS, auth, error handling
 │       │   ├── routes/       # API route handlers
 │       │   │   ├── chat.ts   # Agentic chat with tool orchestration
 │       │   │   ├── documents.ts  # Document CRUD
@@ -668,7 +668,7 @@ Tests are [Vitest](https://vitest.dev) files named `*.test.ts`, run from the rep
 npm test
 ```
 
-`.railway/railway.test.ts` compiles the Railway infrastructure-as-code file and pins the shape it renders. `apps/api/tests/app.test.ts` drives the Express app over HTTP to pin request-body parsing and the error handler. The root `vitest.config.mts` runs each unit as its own project; a new unit with tests gets an entry in its `projects` list.
+`.railway/railway.test.ts` compiles the Railway infrastructure-as-code file and pins the shape it renders. `apps/api/tests/app.test.ts` drives the Express app over HTTP to pin request-body parsing and the error handler; `npm run typecheck` covers it through `apps/api/tests/tsconfig.json`. The root `vitest.config.mts` runs each unit as its own project; a new unit with tests gets an entry in its `projects` list.
 
 ## Troubleshooting
 

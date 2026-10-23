@@ -113,7 +113,7 @@ apps/api/
 ├── src/
 │   ├── index.ts          # Express app entry
 │   ├── config/           # Environment validation
-│   ├── middleware/       # CORS, auth, error handling
+│   ├── middleware/       # Body parsing, CORS, auth, error handling
 │   ├── routes/           # API route handlers
 │   ├── services/         # Redis, Supabase init
 │   └── types/            # Zod schemas and TS types

@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "typecheck": "npm run typecheck:api && npm run typecheck:web && npm run typecheck:iac",
-    "typecheck:api": "cd apps/api && npx tsc --noEmit",
+    "typecheck:api": "cd apps/api && npx tsc --noEmit && npx tsc -p tests/tsconfig.json",
     "typecheck:web": "cd apps/web && npx tsc --noEmit",
     "typecheck:iac": "cd apps/api && npx tsc --noEmit -p ../../.railway/tsconfig.json",
     "build": "npm run build:api && npm run build:web",

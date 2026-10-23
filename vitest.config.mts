@@ -4,9 +4,6 @@ import { defineConfig } from 'vitest/config';
 // must not leak into apps/web, which defines its own).
 export default defineConfig({
   test: {
-    projects: [
-      { test: { name: 'iac', include: ['.railway/**/*.test.ts'] } },
-      'apps/api',
-    ],
+    projects: [{ test: { name: 'iac', include: ['.railway/**/*.test.ts'] } }, 'apps/api'],
   },
 });

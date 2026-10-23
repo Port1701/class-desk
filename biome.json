@@ -6,7 +6,11 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["apps/**/*.{js,jsx,ts,tsx,json,jsonc,jsonl}", ".railway/**/*.ts"],
+    "includes": [
+      "apps/**/*.{js,jsx,ts,tsx,json,jsonc,jsonl}",
+      ".railway/**/*.ts",
+      "vitest.config.mts"
+    ],
     "ignoreUnknown": true
   },
   "formatter": {
