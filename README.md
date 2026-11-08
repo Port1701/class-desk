@@ -8,7 +8,7 @@ ClassDesk is an AI assistant built with Next.js, Express, and Claude. It consoli
 
 ### User-Facing Features
 
-- **🤖 Interactive Chatbot**: Agentic AI assistant powered by Claude Haiku 4.5
+- **🤖 Interactive Chatbot**: Agentic AI assistant powered by the newest Claude Haiku (currently Haiku 5.5)
 - **📚 Hybrid RAG Search**: Combines vector semantic search + fuzzy keyword matching for maximum recall
 - **📖 Document Retrieval**: Searchable knowledge base of class documents with auto-generated [N] citations
 - **🔍 Web Search**: Live internet search capability within conversations (up to 3 uses per response)
@@ -45,7 +45,7 @@ ClassDesk is an AI assistant built with Next.js, Express, and Claude. It consoli
 ## AI Architecture: Agentic Assistant with Hybrid RAG
 
 **The One-Liner:**
-Claude Haiku 4.5 powered agentic chatbot with hybrid RAG (vector + fuzzy search), multi-tool orchestration, and Langfuse observability.
+Agentic chatbot on the newest Claude Haiku with hybrid RAG (vector + fuzzy search), multi-tool orchestration, and Langfuse observability.
 
 ### System Architecture Diagram
 
@@ -217,7 +217,7 @@ User Query
 
 ### Core AI Stack
 
-- **Model**: Claude Haiku 4.5 via Anthropic SDK
+- **Model**: the newest Claude Haiku (currently Haiku 5.5) via the AI SDK's Anthropic provider, at `low` effort. `apps/api/src/services/claudeModels.ts` finds it through the Anthropic Models API at startup and every 6 hours, falling back to `claude-haiku-5-5` if the lookup fails
 - **Framework**: Vercel AI SDK with agentic loop (`streamText` for web, `generateText` for non-streamed responses)
 - **LLM Observability**: Langfuse for tracing, prompt management, and decision logging
 - **Agentic Tools** (max 5 invocations per request):

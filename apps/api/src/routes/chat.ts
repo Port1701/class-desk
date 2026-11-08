@@ -3,6 +3,7 @@ import { propagateAttributes, startActiveObservation } from '@langfuse/tracing';
 import { generateObject, type ModelMessage, stepCountIs, streamText, type ToolSet, tool } from 'ai';
 import { Router } from 'express';
 import { z } from 'zod';
+import { getHaikuModelId } from '@/services/claudeModels.js';
 import { generateEmbedding, isEmbeddingsAvailable } from '@/services/embeddings.js';
 import { type FetchUrlResult, fetchUrl } from '@/services/fetchUrl.js';
 import { type FormFillResult, fillMondayForm1, fillMondayForm2 } from '@/services/formFiller.js';
@@ -13,6 +14,20 @@ import { extractContextWindows, extractDates, extractKeywords } from '@/services
 const SUGGESTIONS_DELIMITER = '\n\n---SUGGESTIONS---\n';
 const SOURCES_DELIMITER = '\n\n---SOURCES---\n';
 const SUGGESTIONS_TIMEOUT_MS = 5000;
+
+// Both calls run on the newest Claude Haiku (services/claudeModels.ts).
+// Haiku 5.5 thinks by default at effort 'medium'; chat is a live stream, so it
+// runs at 'low' to keep time-to-first-token close to Haiku 4.5, which never
+// thought. Suggestions are dropped if they miss the 5s race, so they get the
+// lowest effort Anthropic offers.
+const CHAT_EFFORT = 'low' as const;
+const SUGGESTIONS_EFFORT = 'low' as const;
+
+// Explicit output ceilings. The provider limits an id it does not recognize to
+// a small default, and the model id is chosen at runtime, so a future Haiku
+// would otherwise get truncated answers. Thinking counts toward these.
+const CHAT_MAX_OUTPUT_TOKENS = 16_000;
+const SUGGESTIONS_MAX_OUTPUT_TOKENS = 2_000;
 
 const SuggestionsSchema = z.object({
   suggestions: z.array(z.string().max(80)).min(1),
@@ -271,12 +286,14 @@ router.post('/', async (req, res) => {
 
       await propagateAttributes(traceAttrs, async () => {
         const result = await streamText({
-          model: anthropic('claude-haiku-4-5'),
+          model: anthropic(getHaikuModelId()),
           system: systemPrompt,
           messages: messages as ModelMessage[],
           tools,
           stopWhen: stepCountIs(5),
           abortSignal: controller.signal,
+          maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
+          providerOptions: { anthropic: { effort: CHAT_EFFORT } },
           experimental_telemetry: {
             isEnabled: true,
             functionId: 'chat-streamText',
@@ -377,11 +394,13 @@ router.post('/', async (req, res) => {
 
           const suggestionsResult = await Promise.race([
             generateObject({
-              model: anthropic('claude-haiku-4-5'),
+              model: anthropic(getHaikuModelId()),
               system: suggestionsSystemPrompt,
               messages: recentMessages,
               schema: SuggestionsSchema,
-              temperature: 0.7,
+              // No temperature: Haiku 5.5 rejects any non-default value with a 400.
+              maxOutputTokens: SUGGESTIONS_MAX_OUTPUT_TOKENS,
+              providerOptions: { anthropic: { effort: SUGGESTIONS_EFFORT } },
               experimental_telemetry: {
                 isEnabled: true,
                 functionId: 'chat-generateSuggestions',
