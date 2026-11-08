@@ -28,9 +28,9 @@ CREATE OR REPLACE FUNCTION public.set_updated_at () returns trigger language plp
 begin new.updated_at = now(); return new; end; $$;
 
 
-CREATE TRIGGER documents_updated_at before
-UPDATE ON public.documents FOR each ROW
-EXECUTE function public.set_updated_at ();
+CREATE TRIGGER documents_updated_at
+BEFORE UPDATE ON public.documents FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at ();
 
 
 CREATE OR REPLACE FUNCTION public.match_documents (

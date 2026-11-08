@@ -509,6 +509,7 @@ The health endpoint shows Redis, Supabase, and uptime status.
    - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Your Supabase publishable key
    - `NEXT_PUBLIC_API_URL`: Your deployed API URL (e.g., https://api.example.com)
+   - Optional `NEXT_PUBLIC_BUILDER_NAME`, `NEXT_PUBLIC_BUILDER_ROLE`, `NEXT_PUBLIC_BUILDER_EMAIL`: who built this deployment. They fill the About page's "Built by" card and the site's author metadata; with no name set, both are left out.
 5. Deploy
 
 The `vercel.json` is configured to:
@@ -535,6 +536,7 @@ Railway is configured as infrastructure as code: `.railway/railway.ts` at the re
    - **AI/LLM**:
      - `ANTHROPIC_API_KEY`: Your Anthropic API key
      - `OPENAI_API_KEY`: Your OpenAI API key (for embeddings)
+     - Optional `HAIKU_MODEL_ID`: pins the chat model (e.g., `claude-haiku-5-5`) and turns off the newest-Haiku lookup, as a quick rollback; unset means the newest Claude Haiku
    - **Observability**:
      - `LANGFUSE_PUBLIC_KEY`: Langfuse public key
      - `LANGFUSE_SECRET_KEY`: Langfuse secret key

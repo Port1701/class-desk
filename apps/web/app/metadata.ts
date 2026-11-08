@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { builder } from '@/lib/builder';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -30,9 +31,12 @@ export const metadata: Metadata = {
     'Supabase',
     'Redis',
   ],
-  authors: [{ name: 'Your Name' }],
-  creator: 'Your Name',
-  publisher: 'Your Name',
+  // Omitted until NEXT_PUBLIC_BUILDER_NAME is set (lib/builder.ts).
+  ...(builder.name && {
+    authors: [{ name: builder.name }],
+    creator: builder.name,
+    publisher: builder.name,
+  }),
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   openGraph: {
     type: 'website',

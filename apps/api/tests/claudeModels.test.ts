@@ -461,7 +461,59 @@ describe('initClaudeModels', () => {
     expect(getHaikuModelId()).toBe(FALLBACK_HAIKU_MODEL_ID);
 
     respond(page([model('claude-haiku-6', '2027-05-01T00:00:00Z')]));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(getHaikuModelId()).toBe('claude-haiku-6');
+    vi.useRealTimers();
+    await vi.waitFor(() => expect(getHaikuModelId()).toBe('claude-haiku-6'), { timeout: 1_000 });
+  });
+
+  it('pins HAIKU_MODEL_ID and never looks anything up', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      page([model('claude-haiku-6', '2027-05-01T00:00:00Z')]),
+    );
+    await initClaudeModels('k', { fetchFn, modelOverride: 'claude-haiku-4-5' });
+
+    expect(getHaikuModelId()).toBe('claude-haiku-4-5');
+    expect(getHaikuModelId()).toBe('claude-haiku-4-5');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('lookup reporting', () => {
+  it('reports a switch, then an unchanged answer, then a failure', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onLookup = vi.fn();
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(page([model('claude-haiku-6', '2027-05-01T00:00:00Z')]))
+      .mockResolvedValueOnce(page([model('claude-haiku-6', '2027-05-01T00:00:00Z')]))
+      .mockResolvedValueOnce(new Response('down', { status: 503 }));
+    const resolver = createHaikuModelResolver({ apiKey: 'k', fetchFn, now: () => 0, onLookup });
+
+    await resolver.refresh();
+    await resolver.refresh();
+    await resolver.refresh();
+
+    expect(onLookup.mock.calls.map(([result]) => result)).toEqual([
+      { outcome: 'switched', modelId: 'claude-haiku-6', previousId: FALLBACK_HAIKU_MODEL_ID },
+      { outcome: 'unchanged', modelId: 'claude-haiku-6', previousId: 'claude-haiku-6' },
+      { outcome: 'failed', modelId: 'claude-haiku-6', error: 'Models API returned HTTP 503' },
+    ]);
+  });
+
+  it('keeps selecting models when the reporter throws', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const resolver = createHaikuModelResolver({
+      apiKey: 'k',
+      fetchFn: vi.fn<typeof fetch>(async () =>
+        page([model('claude-haiku-6', '2027-05-01T00:00:00Z')]),
+      ),
+      now: () => 0,
+      onLookup: () => {
+        throw new Error('tracing down');
+      },
+    });
+
+    await expect(resolver.refresh()).resolves.toBeUndefined();
+    expect(resolver.getModelId()).toBe('claude-haiku-6');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('lookup report failed'));
   });
 });

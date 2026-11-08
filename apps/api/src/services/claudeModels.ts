@@ -1,3 +1,4 @@
+import { startObservation } from '@langfuse/tracing';
 import { z } from 'zod';
 
 /**
@@ -38,6 +39,29 @@ const DEFAULT_LOOKUP_TIMEOUT_MS = 5_000;
 const INIT_DEADLINE_MS = 5_000;
 export const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
 export const RETRY_AFTER_FAILURE_MS = 10 * 60 * 1000;
+
+/** What one lookup did, reported to `onLookup`. */
+export type LookupResult =
+  | { outcome: 'switched' | 'unchanged'; modelId: string; previousId: string }
+  | { outcome: 'failed'; modelId: string; error: string };
+
+/**
+ * Records each lookup as a Langfuse event beside the LLM traces (a no-op when
+ * Langfuse is not configured), so a failing lookup or a model switch is visible
+ * there and not only in the server log. Failures are level WARNING: chat keeps
+ * working on the current model.
+ */
+const reportLookupToLangfuse = (result: LookupResult): void => {
+  startObservation(
+    'claude-models.lookup',
+    {
+      level: result.outcome === 'failed' ? 'WARNING' : 'DEFAULT',
+      statusMessage: result.outcome === 'failed' ? result.error : undefined,
+      output: result,
+    },
+    { asType: 'event' },
+  );
+};
 
 const SupportFlagSchema = z.object({ supported: z.boolean() }).nullable().optional();
 
@@ -121,6 +145,8 @@ type ResolverOptions = {
   now?: () => number;
   /** Per-request timeout; a seam for tests, defaulting to 5s. */
   lookupTimeoutMs?: number;
+  /** Called after every lookup; defaults to recording a Langfuse event. */
+  onLookup?: (result: LookupResult) => void;
 };
 
 /** Every model the key can see, following pagination up to MAX_PAGES. */
@@ -194,10 +220,22 @@ export const createHaikuModelResolver = ({
   fetchFn = fetch,
   now = Date.now,
   lookupTimeoutMs = DEFAULT_LOOKUP_TIMEOUT_MS,
+  onLookup = reportLookupToLangfuse,
 }: ResolverOptions) => {
   let currentId = FALLBACK_HAIKU_MODEL_ID;
   let nextRefreshAt = 0;
   let inFlight: Promise<void> | null = null;
+
+  // Reporting must never break model selection.
+  const notify = (result: LookupResult) => {
+    try {
+      onLookup(result);
+    } catch (error) {
+      console.warn(
+        `[claude-models] lookup report failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
 
   /** Never throws; a failure keeps the current id and schedules a retry. */
   const refresh = (): Promise<void> => {
@@ -210,18 +248,22 @@ export const createHaikuModelResolver = ({
         if (!newest) {
           throw new Error('Models API listed no eligible Claude Haiku');
         }
-        if (newest !== currentId) {
-          console.log(`[claude-models] Haiku model: ${currentId} -> ${newest}`);
+        const previousId = currentId;
+        if (newest !== previousId) {
+          console.log(`[claude-models] Haiku model: ${previousId} -> ${newest}`);
         }
         currentId = newest;
         nextRefreshAt = now() + REFRESH_AFTER_SUCCESS_MS;
+        notify({
+          outcome: newest === previousId ? 'unchanged' : 'switched',
+          modelId: newest,
+          previousId,
+        });
       } catch (error) {
-        console.warn(
-          `[claude-models] Haiku lookup failed, staying on ${currentId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[claude-models] Haiku lookup failed, staying on ${currentId}: ${message}`);
         nextRefreshAt = now() + RETRY_AFTER_FAILURE_MS;
+        notify({ outcome: 'failed', modelId: currentId, error: message });
       } finally {
         inFlight = null;
       }
@@ -243,6 +285,8 @@ export const createHaikuModelResolver = ({
 type InitOptions = Omit<ResolverOptions, 'apiKey'> & {
   /** How long startup waits for the first lookup, defaulting to 5s. */
   deadlineMs?: number;
+  /** Pins this model id and skips every lookup (the HAIKU_MODEL_ID kill switch). */
+  modelOverride?: string;
 };
 
 let resolver: ReturnType<typeof createHaikuModelResolver> | null = null;
@@ -256,7 +300,12 @@ export const initClaudeModels = async (
   apiKey: string,
   options: InitOptions = {},
 ): Promise<void> => {
-  const { deadlineMs = INIT_DEADLINE_MS, ...resolverOptions } = options;
+  const { deadlineMs = INIT_DEADLINE_MS, modelOverride, ...resolverOptions } = options;
+  if (modelOverride) {
+    console.log(`[claude-models] HAIKU_MODEL_ID pins ${modelOverride}; lookups are off`);
+    resolver = { getModelId: () => modelOverride, refresh: async () => {} };
+    return;
+  }
   resolver = createHaikuModelResolver({ apiKey, ...resolverOptions });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<void>((resolve) => {

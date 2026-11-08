@@ -21,10 +21,9 @@ const SUGGESTIONS_TIMEOUT_MS = 5000;
 
 // Both calls run on the newest Claude Haiku (services/claudeModels.ts) at the
 // same effort; the resolver only picks a model that reports support for it.
-// Haiku 5.5 (the fallback model) thinks by default at effort 'medium' (Haiku 4.5
-// never thought);
-// chat is a live stream, so it runs at 'low' to keep the wait before the first
-// token short. Not yet measured against Haiku 4.5.
+// Haiku 5.5 (the fallback model) thinks by default at effort 'medium', where
+// Haiku 4.5 never thought; chat is a live stream, so it runs at 'low' to keep
+// the wait before the first token short. Not yet measured against Haiku 4.5.
 //
 // Suggestions also turn thinking off (the resolver checks that too): they are
 // dropped if they miss the 5s race and are a short JSON array, and thinking

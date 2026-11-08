@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { builder } from '@/lib/builder';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -55,18 +56,29 @@ const AboutPage = () => {
             </ul>
           </div>
 
-          <div className="p-6 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-            <h2 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-white">Built by</h2>
-            <p className="text-gray-700 dark:text-gray-300">
-              <strong>Your Name</strong>, [Your Role] &mdash;{' '}
-              <Link
-                href="mailto:your@email.com"
-                className="text-primary hover:text-primary-mid dark:text-primary-light underline"
-              >
-                your@email.com
-              </Link>
-            </p>
-          </div>
+          {builder.name && (
+            <div className="p-6 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
+              <h2 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-white">
+                Built by
+              </h2>
+              <p className="text-gray-700 dark:text-gray-300">
+                <strong>{builder.name}</strong>
+                {builder.role && <>, {builder.role}</>}
+                {builder.email && (
+                  <>
+                    {' '}
+                    &mdash;{' '}
+                    <Link
+                      href={`mailto:${builder.email}`}
+                      className="text-primary hover:text-primary-mid dark:text-primary-light underline"
+                    >
+                      {builder.email}
+                    </Link>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
 
           <div className="p-6 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
             <h2 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-white">AI stack</h2>

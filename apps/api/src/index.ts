@@ -64,7 +64,7 @@ const startServer = async (): Promise<void> => {
     await initLangfuse();
     await initEmbeddings();
     // Never throws: a failed lookup leaves chat on the pinned fallback Haiku.
-    await initClaudeModels(env.ANTHROPIC_API_KEY);
+    await initClaudeModels(env.ANTHROPIC_API_KEY, { modelOverride: env.HAIKU_MODEL_ID });
 
     // Warm the system prompt cache
     await getSystemPrompt();

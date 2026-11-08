@@ -66,3 +66,11 @@ This file tracks all significant decisions, implementations, and learnings throu
 **Rationale:** The Anthropic API has no cross-version Haiku alias, so the newest id has to be looked up. The lookup never blocks a request or fails a chat.
 **Alternatives Considered:** Pinning a dated id and bumping it in a reviewed PR, which keeps every model change reviewed. Rejected at the user's request; the tradeoff is that a new Haiku reaches users without review.
 **Impact:** A new Haiku release reaches production after the 6-hour refresh window: the next chat request starts a background lookup and the request after it uses the result (startup waits at most 5s for the first lookup). Only an active Haiku-line model reporting support for low effort and disabled thinking is picked; logged as `[claude-models] Haiku model: <old> -> <new>`. The Langfuse-hosted system prompt may still name Haiku 4.5 and is edited there.
+
+## 2026-11-07 18:25 PT - Model kill switch, lookup events, configurable "Built by"
+
+**Type:** Decision
+**Change:** `HAIKU_MODEL_ID` (optional, `claude-*` ids only) pins the chat model and turns off the newest-Haiku lookup; it is listed in `.railway/railway.ts` `API_VARIABLES`. Each lookup is recorded as a Langfuse `claude-models.lookup` event (level WARNING on failure). The About page's "Built by" card and the site's author metadata read `NEXT_PUBLIC_BUILDER_NAME`, `_ROLE` and `_EMAIL` (`apps/web/lib/builder.ts`) and are omitted when no name is set. Migration `20260218000000_add_rag_documents.sql` is committed in `sql-formatter` 15.9.0's output.
+**Context:** Follow-ups from review of the newest-Haiku change.
+**Rationale:** A rollback that needs no deploy; lookup failures visible where the LLM traces already are, since the repo has no error tracker; the template keeps no hardcoded identity (placeholders were deliberate since the open-source strip). The migration was formatted by 15.7.2 and the pin moved to 15.9.0, so every pre-commit run rewrote it; the reformat changes only the `CREATE TRIGGER` statement's keyword case and line breaks.
+**Impact:** None until a variable is set. Applying the old and the reformatted migration to a throwaway Postgres 17 + pgvector produced identical `pg_dump --schema-only` output.
