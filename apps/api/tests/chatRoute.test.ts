@@ -107,6 +107,9 @@ describe('POST /chat model options', () => {
     expect(chat.model).toEqual({ modelId: 'claude-haiku-test-id' });
     expect(chat.providerOptions?.anthropic).toEqual({ effort: 'low' });
     expect(chat.maxOutputTokens).toBe(16_000);
+    expect(chat).not.toHaveProperty('temperature');
+    expect(chat).not.toHaveProperty('topP');
+    expect(chat).not.toHaveProperty('topK');
   });
 
   it('runs suggestions on the resolved Haiku with thinking off and no sampling parameters', async () => {

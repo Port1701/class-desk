@@ -16,16 +16,17 @@ const SOURCES_DELIMITER = '\n\n---SOURCES---\n';
 const SUGGESTIONS_TIMEOUT_MS = 5000;
 
 // Both calls run on the newest Claude Haiku (services/claudeModels.ts), which
-// only picks a model that supports this effort level. Haiku 5.5 thinks by
-// default at effort 'medium' (Haiku 4.5 never thought); chat is a live stream,
-// so it runs at 'low' to keep the wait before the first token short. Not yet
-// measured against Haiku 4.5.
+// only picks a model that reports support for this effort level and for
+// disabled thinking. Haiku 5.5 thinks by default at effort 'medium' (Haiku 4.5
+// never thought); chat is a live stream, so it runs at 'low' to keep the wait
+// before the first token short. Not yet measured against Haiku 4.5.
 const CHAT_EFFORT = REQUIRED_EFFORT_LEVEL;
 
 // Suggestions are dropped if they miss the 5s race and are a short JSON array,
-// so they skip thinking entirely: thinking would only add latency and eat the
-// output ceiling below, truncating the JSON. Haiku 5.5 accepts disabled
-// thinking at effort 'high' or lower.
+// so they skip thinking: thinking adds latency and counts toward the output
+// ceiling below, which could truncate the JSON (unmeasured). The installed
+// @ai-sdk/anthropic allows disabled thinking on claude-haiku-5-5 at effort
+// 'high' or lower.
 const SUGGESTIONS_EFFORT = REQUIRED_EFFORT_LEVEL;
 
 // Explicit output ceilings. The installed @ai-sdk/anthropic caps an id it does
@@ -404,9 +405,8 @@ router.post('/', async (req, res) => {
               system: suggestionsSystemPrompt,
               messages: recentMessages,
               schema: SuggestionsSchema,
-              // No temperature: Haiku 5.5 rejects non-default sampling values.
-              // The installed SDK strips them for claude-haiku-5-5, but not
-              // for an id it does not know, which the resolver can return.
+              // No temperature: Haiku 5.5 rejects non-default sampling values
+              // (the installed SDK also strips them for claude-* ids).
               maxOutputTokens: SUGGESTIONS_MAX_OUTPUT_TOKENS,
               providerOptions: {
                 anthropic: { effort: SUGGESTIONS_EFFORT, thinking: { type: 'disabled' } },

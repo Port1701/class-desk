@@ -65,4 +65,4 @@ This file tracks all significant decisions, implementations, and learnings throu
 **Context:** User asked for the chatbot to always use the most recent Claude Haiku.
 **Rationale:** The Anthropic API has no cross-version Haiku alias, so the newest id has to be looked up. The lookup never blocks a request or fails a chat.
 **Alternatives Considered:** Pinning a dated id and bumping it in a reviewed PR, which keeps every model change reviewed. Rejected at the user's request; the tradeoff is that a new Haiku reaches users without review.
-**Impact:** A new Haiku release reaches production within about six hours, logged as `[claude-models] Haiku model: <old> -> <new>`. The Langfuse-hosted system prompt may still name Haiku 4.5 and is edited there.
+**Impact:** A new Haiku release reaches production on the first chat request after the 6-hour refresh window (startup waits at most 5s for the first lookup), logged as `[claude-models] Haiku model: <old> -> <new>`. The Langfuse-hosted system prompt may still name Haiku 4.5 and is edited there.

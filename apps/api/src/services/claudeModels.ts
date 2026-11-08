@@ -10,16 +10,23 @@ import { z } from 'zod';
  * it goes stale, so a new Haiku release reaches users without a deploy and no
  * request waits on the lookup.
  *
- * A failed lookup never fails a chat: the last good answer (or the pinned
- * fallback below) keeps serving, and the lookup is retried later.
+ * Eligibility fails closed: a model is used only when the API explicitly
+ * reports what the chat route needs. A failed lookup, or one with no eligible
+ * model, never fails a chat: the last good answer (or the pinned fallback
+ * below) keeps serving, and the lookup is retried later.
  */
 
 /** Used until the first lookup succeeds, and whenever lookups keep failing. */
 export const FALLBACK_HAIKU_MODEL_ID = 'claude-haiku-5-5';
 
-/** The effort level the chat route sends; a model that lacks it is skipped. */
+/**
+ * The effort level the chat route sends on every call. The route imports this
+ * rather than defining its own, so the eligibility check and the request cannot
+ * drift apart.
+ */
 export const REQUIRED_EFFORT_LEVEL = 'low';
 
+const HAIKU_LINE = 'haiku';
 const HAIKU_ID_PREFIX = 'claude-haiku-';
 const MODELS_URL = 'https://api.anthropic.com/v1/models';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -27,12 +34,15 @@ const PAGE_LIMIT = 1000;
 const MAX_PAGES = 10;
 const DEFAULT_LOOKUP_TIMEOUT_MS = 5_000;
 const INIT_DEADLINE_MS = 5_000;
-export const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
+const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
 export const RETRY_AFTER_FAILURE_MS = 10 * 60 * 1000;
 
+const SupportFlagSchema = z.object({ supported: z.boolean() }).nullable().optional();
+
 // Only the fields the picker reads; everything else on a model is ignored.
-// `line`, `lifecycle` and `capabilities` are optional so an older response
-// shape still parses and falls back to the id prefix.
+// `line` and `lifecycle` are optional so a response without them still parses
+// (the id prefix then identifies a Haiku); a model without the capability
+// flags below parses too, but is never picked.
 const ModelSchema = z.object({
   id: z.string(),
   created_at: z.string(),
@@ -40,7 +50,14 @@ const ModelSchema = z.object({
   lifecycle: z.string().nullable().optional(),
   capabilities: z
     .object({
-      effort: z.record(z.string(), z.unknown()).optional(),
+      effort: z
+        .object({ [REQUIRED_EFFORT_LEVEL]: SupportFlagSchema })
+        .nullable()
+        .optional(),
+      thinking: z
+        .object({ types: z.object({ disabled: SupportFlagSchema }).nullable().optional() })
+        .nullable()
+        .optional(),
     })
     .nullable()
     .optional(),
@@ -52,25 +69,27 @@ const ModelsPageSchema = z.object({
   last_id: z.string().nullable().optional(),
 });
 
-export type ModelSummary = z.infer<typeof ModelSchema>;
+type ModelSummary = z.infer<typeof ModelSchema>;
 
-/** A Haiku that is active and supports the effort level the route sends. */
+/**
+ * A model the chat route can call: an active Haiku that explicitly supports the
+ * effort level the route sends and disabled thinking (the suggestions call
+ * sends it).
+ */
 const isEligibleHaiku = (model: ModelSummary): boolean => {
-  // The API documents `line` as the family discriminator; the id prefix is the
-  // fallback for a response that omits it.
+  // The API documents `line` as the family discriminator and null as "no
+  // line". The id prefix is used only when the field is absent altogether.
   const isHaiku =
-    typeof model.line === 'string' ? model.line === 'haiku' : model.id.startsWith(HAIKU_ID_PREFIX);
+    model.line === undefined ? model.id.startsWith(HAIKU_ID_PREFIX) : model.line === HAIKU_LINE;
   if (!isHaiku) {
     return false;
   }
   if (typeof model.lifecycle === 'string' && model.lifecycle !== 'active') {
     return false;
   }
-  const effortLevel = model.capabilities?.effort?.[REQUIRED_EFFORT_LEVEL];
-  if (effortLevel !== undefined) {
-    return (effortLevel as { supported?: unknown } | null)?.supported === true;
-  }
-  return true;
+  const supportsEffort = model.capabilities?.effort?.[REQUIRED_EFFORT_LEVEL]?.supported === true;
+  const supportsThinkingOff = model.capabilities?.thinking?.types?.disabled?.supported === true;
+  return supportsEffort && supportsThinkingOff;
 };
 
 /**
@@ -78,7 +97,8 @@ const isEligibleHaiku = (model: ModelSummary): boolean => {
  *
  * Sorted here rather than trusting the API's list order. On a tie in
  * `created_at` the shorter id wins, so an undated alias beats its dated
- * snapshot.
+ * snapshot; a tie in length falls back to alphabetical order so the answer is
+ * deterministic.
  */
 export const pickNewestHaiku = (models: readonly ModelSummary[]): string | null => {
   const candidates = models
@@ -106,6 +126,7 @@ type ResolverOptions = {
   apiKey: string;
   fetchFn?: typeof fetch;
   now?: () => number;
+  /** Per-request timeout; a seam for tests, defaulting to 5s. */
   lookupTimeoutMs?: number;
 };
 
@@ -208,16 +229,21 @@ export const createHaikuModelResolver = ({
   return { getModelId, refresh };
 };
 
+type InitOptions = Omit<ResolverOptions, 'apiKey'> & {
+  /** How long startup waits for the first lookup, defaulting to 5s. */
+  deadlineMs?: number;
+};
+
 let resolver: ReturnType<typeof createHaikuModelResolver> | null = null;
 
 /**
- * Start resolving the newest Haiku at startup. Waits at most INIT_DEADLINE_MS
- * so a slow Models API cannot hold the server past its healthcheck; a lookup
+ * Start resolving the newest Haiku at startup. Waits at most INIT_DEADLINE_MS,
+ * so a slow Models API delays the server's start by at most that long; a lookup
  * still running then finishes in the background. Never throws.
  */
 export const initClaudeModels = async (
   apiKey: string,
-  options: Omit<ResolverOptions, 'apiKey'> & { deadlineMs?: number } = {},
+  options: InitOptions = {},
 ): Promise<void> => {
   const { deadlineMs = INIT_DEADLINE_MS, ...resolverOptions } = options;
   resolver = createHaikuModelResolver({ apiKey, ...resolverOptions });
