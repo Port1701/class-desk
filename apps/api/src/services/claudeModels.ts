@@ -25,7 +25,7 @@ export const FALLBACK_HAIKU_MODEL_ID = 'claude-haiku-5-5';
  * on the suggestions call.
  */
 export const ROUTE_EFFORT_LEVEL = 'low';
-export const ROUTE_THINKING_OFF = { type: 'disabled' } as const;
+export const SUGGESTIONS_THINKING = { type: 'disabled' } as const;
 
 const HAIKU_LINE = 'haiku';
 const MODELS_URL = 'https://api.anthropic.com/v1/models';

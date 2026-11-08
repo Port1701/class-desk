@@ -6,7 +6,7 @@ import { z } from 'zod';
 import {
   getHaikuModelId,
   ROUTE_EFFORT_LEVEL,
-  ROUTE_THINKING_OFF,
+  SUGGESTIONS_THINKING,
 } from '@/services/claudeModels.js';
 import { generateEmbedding, isEmbeddingsAvailable } from '@/services/embeddings.js';
 import { type FetchUrlResult, fetchUrl } from '@/services/fetchUrl.js';
@@ -21,7 +21,8 @@ const SUGGESTIONS_TIMEOUT_MS = 5000;
 
 // Both calls run on the newest Claude Haiku (services/claudeModels.ts) at the
 // same effort; the resolver only picks a model that reports support for it.
-// Haiku 5.5 thinks by default at effort 'medium' (Haiku 4.5 never thought);
+// Haiku 5.5 (the fallback model) thinks by default at effort 'medium' (Haiku 4.5
+// never thought);
 // chat is a live stream, so it runs at 'low' to keep the wait before the first
 // token short. Not yet measured against Haiku 4.5.
 //
@@ -409,7 +410,7 @@ router.post('/', async (req, res) => {
               // No temperature: Haiku 5.5 rejects non-default sampling values.
               maxOutputTokens: SUGGESTIONS_MAX_OUTPUT_TOKENS,
               providerOptions: {
-                anthropic: { effort: ROUTE_EFFORT_LEVEL, thinking: ROUTE_THINKING_OFF },
+                anthropic: { effort: ROUTE_EFFORT_LEVEL, thinking: SUGGESTIONS_THINKING },
               },
               experimental_telemetry: {
                 isEnabled: true,

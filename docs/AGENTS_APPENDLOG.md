@@ -58,7 +58,7 @@ This file tracks all significant decisions, implementations, and learnings throu
 **Impact:** `engines.node` selects the deploy major only: Vercel reads it to pick Node 24, then runs the latest 24.x it has rolled out (its docs: patch updates roll out "when needed"), and Railway's nixpacks `nodejs_24` takes whatever 24.x its nixpkgs snapshot ships. Neither enforces the 24.22.1 floor, so confirm `node -v` in each build log. A build-time guard was left out because it would block every deploy, security fixes included, while a platform lags the patch. `apps/api/tests/app.test.ts` now drives the real app over HTTP to pin body parsing (valid, malformed 400, over-limit 413, bad charset 415, urlencoded) and the error handler's http-errors / Zod / 500 mapping, the path the content-type and content-disposition majors touch; root `vitest.config.mts` runs `.railway` and `apps/api` as separate projects so each keeps its own aliases.
 **Learnings:** An advisory ID cited by one third-party writeup may not exist in the GitHub Advisory Database or OSV; confirm each ID with `gh api advisories/<GHSA>` before citing it. Dependabot's alert `created_at` can trail the advisory's `published_at` by weeks, so a "this week" sweep filters on both.
 
-## 2026-11-07 20:05 ET - Chat runs on the newest Claude Haiku
+## 2026-11-07 17:05 PT - Chat runs on the newest Claude Haiku
 
 **Type:** Decision
 **Change:** Chat and follow-up suggestions moved from a pinned `claude-haiku-4-5` to the newest Claude Haiku, resolved at runtime by `apps/api/src/services/claudeModels.ts` from the Anthropic Models API (fallback `claude-haiku-5-5`). Effort `low` on both calls, thinking disabled on suggestions, explicit output ceilings, `temperature` removed.
