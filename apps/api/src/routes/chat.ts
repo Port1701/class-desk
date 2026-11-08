@@ -3,7 +3,7 @@ import { propagateAttributes, startActiveObservation } from '@langfuse/tracing';
 import { generateObject, type ModelMessage, stepCountIs, streamText, type ToolSet, tool } from 'ai';
 import { Router } from 'express';
 import { z } from 'zod';
-import { getHaikuModelId } from '@/services/claudeModels.js';
+import { getHaikuModelId, REQUIRED_EFFORT_LEVEL } from '@/services/claudeModels.js';
 import { generateEmbedding, isEmbeddingsAvailable } from '@/services/embeddings.js';
 import { type FetchUrlResult, fetchUrl } from '@/services/fetchUrl.js';
 import { type FormFillResult, fillMondayForm1, fillMondayForm2 } from '@/services/formFiller.js';
@@ -15,17 +15,23 @@ const SUGGESTIONS_DELIMITER = '\n\n---SUGGESTIONS---\n';
 const SOURCES_DELIMITER = '\n\n---SOURCES---\n';
 const SUGGESTIONS_TIMEOUT_MS = 5000;
 
-// Both calls run on the newest Claude Haiku (services/claudeModels.ts).
-// Haiku 5.5 thinks by default at effort 'medium'; chat is a live stream, so it
-// runs at 'low' to keep time-to-first-token close to Haiku 4.5, which never
-// thought. Suggestions are dropped if they miss the 5s race, so they get the
-// lowest effort Anthropic offers.
-const CHAT_EFFORT = 'low' as const;
-const SUGGESTIONS_EFFORT = 'low' as const;
+// Both calls run on the newest Claude Haiku (services/claudeModels.ts), which
+// only picks a model that supports this effort level. Haiku 5.5 thinks by
+// default at effort 'medium' (Haiku 4.5 never thought); chat is a live stream,
+// so it runs at 'low' to keep the wait before the first token short. Not yet
+// measured against Haiku 4.5.
+const CHAT_EFFORT = REQUIRED_EFFORT_LEVEL;
 
-// Explicit output ceilings. The provider limits an id it does not recognize to
-// a small default, and the model id is chosen at runtime, so a future Haiku
-// would otherwise get truncated answers. Thinking counts toward these.
+// Suggestions are dropped if they miss the 5s race and are a short JSON array,
+// so they skip thinking entirely: thinking would only add latency and eat the
+// output ceiling below, truncating the JSON. Haiku 5.5 accepts disabled
+// thinking at effort 'high' or lower.
+const SUGGESTIONS_EFFORT = REQUIRED_EFFORT_LEVEL;
+
+// Explicit output ceilings. The installed @ai-sdk/anthropic caps an id it does
+// not recognize at a default and warns, and the model id is chosen at
+// runtime, so a future Haiku would otherwise get that cap. Thinking counts
+// toward these.
 const CHAT_MAX_OUTPUT_TOKENS = 16_000;
 const SUGGESTIONS_MAX_OUTPUT_TOKENS = 2_000;
 
@@ -398,9 +404,13 @@ router.post('/', async (req, res) => {
               system: suggestionsSystemPrompt,
               messages: recentMessages,
               schema: SuggestionsSchema,
-              // No temperature: Haiku 5.5 rejects any non-default value with a 400.
+              // No temperature: Haiku 5.5 rejects non-default sampling values.
+              // The installed SDK strips them for claude-haiku-5-5, but not
+              // for an id it does not know, which the resolver can return.
               maxOutputTokens: SUGGESTIONS_MAX_OUTPUT_TOKENS,
-              providerOptions: { anthropic: { effort: SUGGESTIONS_EFFORT } },
+              providerOptions: {
+                anthropic: { effort: SUGGESTIONS_EFFORT, thinking: { type: 'disabled' } },
+              },
               experimental_telemetry: {
                 isEnabled: true,
                 functionId: 'chat-generateSuggestions',

@@ -217,7 +217,7 @@ User Query
 
 ### Core AI Stack
 
-- **Model**: the newest Claude Haiku (currently Haiku 5.5) via the AI SDK's Anthropic provider, at `low` effort. `apps/api/src/services/claudeModels.ts` finds it through the Anthropic Models API at startup and every 6 hours, falling back to `claude-haiku-5-5` if the lookup fails
+- **Model**: the newest Claude Haiku (currently Haiku 5.5) via the AI SDK's Anthropic provider, at `low` effort. `apps/api/src/services/claudeModels.ts` finds it through the Anthropic Models API at startup, then again on the first request after 6 hours; it keeps the last good answer when a lookup fails, and uses `claude-haiku-5-5` until the first lookup succeeds
 - **Framework**: Vercel AI SDK with agentic loop (`streamText` for web, `generateText` for non-streamed responses)
 - **LLM Observability**: Langfuse for tracing, prompt management, and decision logging
 - **Agentic Tools** (max 5 invocations per request):

@@ -72,7 +72,7 @@ const AboutPage = () => {
             <h2 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-white">AI stack</h2>
             <ul className="space-y-2 text-gray-700 dark:text-gray-300">
               <li>
-                &bull; <strong>Models:</strong> Claude Haiku 4.5 (chatbot), Claude Sonnet 4.6
+                &bull; <strong>Models:</strong> Claude Haiku (chatbot), Claude Sonnet 4.6
                 (Claude Code)
               </li>
               <li>

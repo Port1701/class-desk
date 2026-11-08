@@ -5,10 +5,10 @@ import { z } from 'zod';
  *
  * The Anthropic API has no cross-version "latest Haiku" alias (each version is
  * a fixed id such as `claude-haiku-5-5`), so the newest one is found by asking
- * the Models API and choosing the `claude-haiku-*` entry with the latest
- * `created_at`. The answer is cached and refreshed in the background, so a new
- * Haiku release reaches users without a deploy and no request ever waits on
- * the lookup.
+ * the Models API and choosing the newest eligible Haiku by `created_at`. The
+ * answer is cached and refreshed in the background on the first request after
+ * it goes stale, so a new Haiku release reaches users without a deploy and no
+ * request waits on the lookup.
  *
  * A failed lookup never fails a chat: the last good answer (or the pinned
  * fallback below) keeps serving, and the lookup is retried later.
@@ -17,25 +17,64 @@ import { z } from 'zod';
 /** Used until the first lookup succeeds, and whenever lookups keep failing. */
 export const FALLBACK_HAIKU_MODEL_ID = 'claude-haiku-5-5';
 
+/** The effort level the chat route sends; a model that lacks it is skipped. */
+export const REQUIRED_EFFORT_LEVEL = 'low';
+
 const HAIKU_ID_PREFIX = 'claude-haiku-';
 const MODELS_URL = 'https://api.anthropic.com/v1/models';
 const ANTHROPIC_VERSION = '2023-06-01';
 const PAGE_LIMIT = 1000;
 const MAX_PAGES = 10;
-const LOOKUP_TIMEOUT_MS = 5_000;
-const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
-const RETRY_AFTER_FAILURE_MS = 10 * 60 * 1000;
+const DEFAULT_LOOKUP_TIMEOUT_MS = 5_000;
+const INIT_DEADLINE_MS = 5_000;
+export const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
+export const RETRY_AFTER_FAILURE_MS = 10 * 60 * 1000;
+
+// Only the fields the picker reads; everything else on a model is ignored.
+// `line`, `lifecycle` and `capabilities` are optional so an older response
+// shape still parses and falls back to the id prefix.
+const ModelSchema = z.object({
+  id: z.string(),
+  created_at: z.string(),
+  line: z.string().nullable().optional(),
+  lifecycle: z.string().nullable().optional(),
+  capabilities: z
+    .object({
+      effort: z.record(z.string(), z.unknown()).optional(),
+    })
+    .nullable()
+    .optional(),
+});
 
 const ModelsPageSchema = z.object({
-  data: z.array(z.object({ id: z.string(), created_at: z.string() })),
+  data: z.array(ModelSchema),
   has_more: z.boolean(),
   last_id: z.string().nullable().optional(),
 });
 
-export type ModelSummary = { id: string; created_at: string };
+export type ModelSummary = z.infer<typeof ModelSchema>;
+
+/** A Haiku that is active and supports the effort level the route sends. */
+const isEligibleHaiku = (model: ModelSummary): boolean => {
+  // The API documents `line` as the family discriminator; the id prefix is the
+  // fallback for a response that omits it.
+  const isHaiku =
+    typeof model.line === 'string' ? model.line === 'haiku' : model.id.startsWith(HAIKU_ID_PREFIX);
+  if (!isHaiku) {
+    return false;
+  }
+  if (typeof model.lifecycle === 'string' && model.lifecycle !== 'active') {
+    return false;
+  }
+  const effortLevel = model.capabilities?.effort?.[REQUIRED_EFFORT_LEVEL];
+  if (effortLevel !== undefined) {
+    return (effortLevel as { supported?: unknown } | null)?.supported === true;
+  }
+  return true;
+};
 
 /**
- * The newest `claude-haiku-*` model, or null when there is none.
+ * The newest eligible Haiku, or null when there is none.
  *
  * Sorted here rather than trusting the API's list order. On a tie in
  * `created_at` the shorter id wins, so an undated alias beats its dated
@@ -43,7 +82,7 @@ export type ModelSummary = { id: string; created_at: string };
  */
 export const pickNewestHaiku = (models: readonly ModelSummary[]): string | null => {
   const candidates = models
-    .filter((model) => model.id.startsWith(HAIKU_ID_PREFIX))
+    .filter(isEligibleHaiku)
     .map((model) => ({ id: model.id, createdAt: Date.parse(model.created_at) }))
     .filter((model) => Number.isFinite(model.createdAt));
 
@@ -67,10 +106,15 @@ type ResolverOptions = {
   apiKey: string;
   fetchFn?: typeof fetch;
   now?: () => number;
+  lookupTimeoutMs?: number;
 };
 
-/** Every model the key can see, following pagination. */
-const listModels = async (apiKey: string, fetchFn: typeof fetch): Promise<ModelSummary[]> => {
+/** Every model the key can see, following pagination up to MAX_PAGES. */
+const listModels = async (
+  apiKey: string,
+  fetchFn: typeof fetch,
+  lookupTimeoutMs: number,
+): Promise<ModelSummary[]> => {
   const models: ModelSummary[] = [];
   let afterId: string | null = null;
 
@@ -83,19 +127,33 @@ const listModels = async (apiKey: string, fetchFn: typeof fetch): Promise<ModelS
 
     const response = await fetchFn(url, {
       headers: { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
-      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+      signal: AbortSignal.timeout(lookupTimeoutMs),
     });
     if (!response.ok) {
       throw new Error(`Models API returned HTTP ${response.status}`);
     }
 
-    const parsed = ModelsPageSchema.parse(await response.json());
-    models.push(...parsed.data);
-    if (!parsed.has_more || !parsed.last_id) {
+    const parsed = ModelsPageSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      throw new Error(
+        `Models API response did not match the expected shape: ${parsed.error.message}`,
+      );
+    }
+    models.push(...parsed.data.data);
+    if (!parsed.data.has_more) {
       return models;
     }
-    afterId = parsed.last_id;
+    if (!parsed.data.last_id) {
+      console.warn(
+        '[claude-models] Models API said has_more with no last_id; using a partial list',
+      );
+      return models;
+    }
+    afterId = parsed.data.last_id;
   }
+  console.warn(
+    `[claude-models] Models API listing stopped at ${MAX_PAGES} pages; using a partial list`,
+  );
   return models;
 };
 
@@ -103,6 +161,7 @@ export const createHaikuModelResolver = ({
   apiKey,
   fetchFn = fetch,
   now = Date.now,
+  lookupTimeoutMs = DEFAULT_LOOKUP_TIMEOUT_MS,
 }: ResolverOptions) => {
   let currentId = FALLBACK_HAIKU_MODEL_ID;
   let nextRefreshAt = 0;
@@ -115,9 +174,9 @@ export const createHaikuModelResolver = ({
     }
     inFlight = (async () => {
       try {
-        const newest = pickNewestHaiku(await listModels(apiKey, fetchFn));
+        const newest = pickNewestHaiku(await listModels(apiKey, fetchFn, lookupTimeoutMs));
         if (!newest) {
-          throw new Error('Models API listed no claude-haiku-* model');
+          throw new Error('Models API listed no eligible Claude Haiku');
         }
         if (newest !== currentId) {
           console.log(`[claude-models] Haiku model: ${currentId} -> ${newest}`);
@@ -151,10 +210,27 @@ export const createHaikuModelResolver = ({
 
 let resolver: ReturnType<typeof createHaikuModelResolver> | null = null;
 
-/** Resolve the newest Haiku once at startup, before the server takes traffic. */
-export const initClaudeModels = async (apiKey: string): Promise<void> => {
-  resolver = createHaikuModelResolver({ apiKey });
-  await resolver.refresh();
+/**
+ * Start resolving the newest Haiku at startup. Waits at most INIT_DEADLINE_MS
+ * so a slow Models API cannot hold the server past its healthcheck; a lookup
+ * still running then finishes in the background. Never throws.
+ */
+export const initClaudeModels = async (
+  apiKey: string,
+  options: Omit<ResolverOptions, 'apiKey'> & { deadlineMs?: number } = {},
+): Promise<void> => {
+  const { deadlineMs = INIT_DEADLINE_MS, ...resolverOptions } = options;
+  resolver = createHaikuModelResolver({ apiKey, ...resolverOptions });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, deadlineMs);
+    timer.unref?.();
+  });
+  try {
+    await Promise.race([resolver.refresh(), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 /** The newest Claude Haiku the API key can use (the fallback before init). */
