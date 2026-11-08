@@ -6,12 +6,12 @@ import { z } from 'zod';
  * The Anthropic API has no cross-version "latest Haiku" alias (each version is
  * a fixed id such as `claude-haiku-5-5`), so the newest one is found by asking
  * the Models API and choosing the newest eligible Haiku by `created_at`. The
- * answer is cached and refreshed in the background on the first request after
- * it goes stale, so a new Haiku release reaches users without a deploy and no
- * request waits on the lookup.
+ * answer is cached; a request after it goes stale starts a background lookup,
+ * and the next request uses the result, so a new Haiku release reaches users
+ * without a deploy and no request waits on the lookup.
  *
  * Eligibility fails closed: a model is used only when the API explicitly
- * reports what the chat route needs. A failed lookup, or one with no eligible
+ * reports what the chat route sends. A failed lookup, or one with no eligible
  * model, never fails a chat: the last good answer (or the pinned fallback
  * below) keeps serving, and the lookup is retried later.
  */
@@ -20,29 +20,29 @@ import { z } from 'zod';
 export const FALLBACK_HAIKU_MODEL_ID = 'claude-haiku-5-5';
 
 /**
- * The effort level the chat route sends on every call. The route imports this
- * rather than defining its own, so the eligibility check and the request cannot
- * drift apart.
+ * What the chat route sends, shared so the eligibility check and the requests
+ * cannot drift apart: this effort level on every call, and disabled thinking
+ * on the suggestions call.
  */
-export const REQUIRED_EFFORT_LEVEL = 'low';
+export const ROUTE_EFFORT_LEVEL = 'low';
+export const ROUTE_THINKING_OFF = { type: 'disabled' } as const;
 
 const HAIKU_LINE = 'haiku';
-const HAIKU_ID_PREFIX = 'claude-haiku-';
 const MODELS_URL = 'https://api.anthropic.com/v1/models';
-const ANTHROPIC_VERSION = '2023-06-01';
+// The version whose documented Models API response carries `line`,
+// `lifecycle` and `capabilities`, which eligibility depends on.
+const ANTHROPIC_VERSION = '2026-10-21';
 const PAGE_LIMIT = 1000;
 const MAX_PAGES = 10;
 const DEFAULT_LOOKUP_TIMEOUT_MS = 5_000;
 const INIT_DEADLINE_MS = 5_000;
-const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
+export const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
 export const RETRY_AFTER_FAILURE_MS = 10 * 60 * 1000;
 
 const SupportFlagSchema = z.object({ supported: z.boolean() }).nullable().optional();
 
 // Only the fields the picker reads; everything else on a model is ignored.
-// `line` and `lifecycle` are optional so a response without them still parses
-// (the id prefix then identifies a Haiku); a model without the capability
-// flags below parses too, but is never picked.
+// A model missing any of them still parses, but is never picked.
 const ModelSchema = z.object({
   id: z.string(),
   created_at: z.string(),
@@ -51,7 +51,7 @@ const ModelSchema = z.object({
   capabilities: z
     .object({
       effort: z
-        .object({ [REQUIRED_EFFORT_LEVEL]: SupportFlagSchema })
+        .object({ [ROUTE_EFFORT_LEVEL]: SupportFlagSchema })
         .nullable()
         .optional(),
       thinking: z
@@ -63,8 +63,10 @@ const ModelSchema = z.object({
     .optional(),
 });
 
+// Entries are validated one by one, so one malformed model is skipped instead
+// of discarding the whole page.
 const ModelsPageSchema = z.object({
-  data: z.array(ModelSchema),
+  data: z.array(z.unknown()),
   has_more: z.boolean(),
   last_id: z.string().nullable().optional(),
 });
@@ -72,25 +74,16 @@ const ModelsPageSchema = z.object({
 type ModelSummary = z.infer<typeof ModelSchema>;
 
 /**
- * A model the chat route can call: an active Haiku that explicitly supports the
- * effort level the route sends and disabled thinking (the suggestions call
- * sends it).
+ * A model the chat route can call: in the Haiku line, active, and reporting
+ * support for the effort level every call sends (both calls) and for disabled
+ * thinking (the suggestions call). The two flags are reported separately, so a
+ * model that rejects only their combination is not detected here.
  */
-const isEligibleHaiku = (model: ModelSummary): boolean => {
-  // The API documents `line` as the family discriminator and null as "no
-  // line". The id prefix is used only when the field is absent altogether.
-  const isHaiku =
-    model.line === undefined ? model.id.startsWith(HAIKU_ID_PREFIX) : model.line === HAIKU_LINE;
-  if (!isHaiku) {
-    return false;
-  }
-  if (typeof model.lifecycle === 'string' && model.lifecycle !== 'active') {
-    return false;
-  }
-  const supportsEffort = model.capabilities?.effort?.[REQUIRED_EFFORT_LEVEL]?.supported === true;
-  const supportsThinkingOff = model.capabilities?.thinking?.types?.disabled?.supported === true;
-  return supportsEffort && supportsThinkingOff;
-};
+const isEligibleHaiku = (model: ModelSummary): boolean =>
+  model.line === HAIKU_LINE &&
+  model.lifecycle === 'active' &&
+  model.capabilities?.effort?.[ROUTE_EFFORT_LEVEL]?.supported === true &&
+  model.capabilities?.thinking?.types?.disabled?.supported === true;
 
 /**
  * The newest eligible Haiku, or null when there is none.
@@ -137,7 +130,25 @@ const listModels = async (
   lookupTimeoutMs: number,
 ): Promise<ModelSummary[]> => {
   const models: ModelSummary[] = [];
+  let skipped = 0;
   let afterId: string | null = null;
+
+  const collect = (entries: unknown[]) => {
+    for (const entry of entries) {
+      const parsed = ModelSchema.safeParse(entry);
+      if (parsed.success) {
+        models.push(parsed.data);
+      } else {
+        skipped++;
+      }
+    }
+  };
+  const finish = () => {
+    if (skipped > 0) {
+      console.warn(`[claude-models] skipped ${skipped} model(s) with an unexpected shape`);
+    }
+    return models;
+  };
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const url = new URL(MODELS_URL);
@@ -160,22 +171,22 @@ const listModels = async (
         `Models API response did not match the expected shape: ${parsed.error.message}`,
       );
     }
-    models.push(...parsed.data.data);
+    collect(parsed.data.data);
     if (!parsed.data.has_more) {
-      return models;
+      return finish();
     }
     if (!parsed.data.last_id) {
       console.warn(
         '[claude-models] Models API said has_more with no last_id; using a partial list',
       );
-      return models;
+      return finish();
     }
     afterId = parsed.data.last_id;
   }
   console.warn(
     `[claude-models] Models API listing stopped at ${MAX_PAGES} pages; using a partial list`,
   );
-  return models;
+  return finish();
 };
 
 export const createHaikuModelResolver = ({

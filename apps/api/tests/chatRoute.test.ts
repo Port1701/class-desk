@@ -48,7 +48,8 @@ vi.mock('@langfuse/tracing', () => ({
 
 vi.mock('@/services/claudeModels.js', () => ({
   getHaikuModelId: () => 'claude-haiku-test-id',
-  REQUIRED_EFFORT_LEVEL: 'low',
+  ROUTE_EFFORT_LEVEL: 'low',
+  ROUTE_THINKING_OFF: { type: 'disabled' },
 }));
 
 vi.mock('@/services/langfuse.js', () => ({
