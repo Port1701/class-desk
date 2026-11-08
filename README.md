@@ -8,7 +8,7 @@ ClassDesk is an AI assistant built with Next.js, Express, and Claude. It consoli
 
 ### User-Facing Features
 
-- **🤖 Interactive Chatbot**: Agentic AI assistant powered by Claude Haiku 4.5
+- **🤖 Interactive Chatbot**: Agentic AI assistant powered by the newest Claude Haiku
 - **📚 Hybrid RAG Search**: Combines vector semantic search + fuzzy keyword matching for maximum recall
 - **📖 Document Retrieval**: Searchable knowledge base of class documents with auto-generated [N] citations
 - **🔍 Web Search**: Live internet search capability within conversations (up to 3 uses per response)
@@ -45,7 +45,7 @@ ClassDesk is an AI assistant built with Next.js, Express, and Claude. It consoli
 ## AI Architecture: Agentic Assistant with Hybrid RAG
 
 **The One-Liner:**
-Claude Haiku 4.5 powered agentic chatbot with hybrid RAG (vector + fuzzy search), multi-tool orchestration, and Langfuse observability.
+Agentic chatbot on the newest Claude Haiku with hybrid RAG (vector + fuzzy search), multi-tool orchestration, and Langfuse observability.
 
 ### System Architecture Diagram
 
@@ -217,7 +217,7 @@ User Query
 
 ### Core AI Stack
 
-- **Model**: Claude Haiku 4.5 via Anthropic SDK
+- **Model**: the newest Claude Haiku via the AI SDK's Anthropic provider, at `low` effort. Only an active Haiku that the Models API reports as supporting that effort and disabled thinking is picked. `apps/api/src/services/claudeModels.ts` finds it through the Anthropic Models API at startup, then again on the first request after 6 hours; it keeps the last good answer when a lookup fails, and uses `claude-haiku-5-5` until the first lookup succeeds
 - **Framework**: Vercel AI SDK with agentic loop (`streamText` for web, `generateText` for non-streamed responses)
 - **LLM Observability**: Langfuse for tracing, prompt management, and decision logging
 - **Agentic Tools** (max 5 invocations per request):
@@ -509,6 +509,7 @@ The health endpoint shows Redis, Supabase, and uptime status.
    - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Your Supabase publishable key
    - `NEXT_PUBLIC_API_URL`: Your deployed API URL (e.g., https://api.example.com)
+   - Optional `NEXT_PUBLIC_BUILDER_NAME`, `NEXT_PUBLIC_BUILDER_ROLE`, `NEXT_PUBLIC_BUILDER_EMAIL`: who built this deployment. They fill the About page's "Built by" card and the site's author metadata; with no name set, both are left out.
 5. Deploy
 
 The `vercel.json` is configured to:
@@ -535,6 +536,7 @@ Railway is configured as infrastructure as code: `.railway/railway.ts` at the re
    - **AI/LLM**:
      - `ANTHROPIC_API_KEY`: Your Anthropic API key
      - `OPENAI_API_KEY`: Your OpenAI API key (for embeddings)
+     - Optional `HAIKU_MODEL_ID`: pins the chat model (e.g., `claude-haiku-5-5`) and turns off the newest-Haiku lookup, as a quick rollback; unset means the newest Claude Haiku
    - **Observability**:
      - `LANGFUSE_PUBLIC_KEY`: Langfuse public key
      - `LANGFUSE_SECRET_KEY`: Langfuse secret key

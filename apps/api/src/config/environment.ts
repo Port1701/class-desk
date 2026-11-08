@@ -14,6 +14,19 @@ const EnvironmentSchema = z.object({
   REDIS_URL: z.url().optional().default('redis://localhost:6379'),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   ANTHROPIC_API_KEY: z.string().min(1),
+  // Kill switch: pins the chat model and turns off the newest-Haiku lookup
+  // (services/claudeModels.ts). Unset or empty means "use the newest Haiku".
+  HAIKU_MODEL_ID: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => value || undefined)
+    .pipe(
+      z
+        .string()
+        .regex(/^claude-[a-z0-9-]+$/, 'must be a Claude model id such as claude-haiku-5-5')
+        .optional(),
+    ),
   OPENAI_API_KEY: z.string().optional(),
   LANGFUSE_PUBLIC_KEY: z.string().optional(),
   LANGFUSE_SECRET_KEY: z.string().optional(),
