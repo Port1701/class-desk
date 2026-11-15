@@ -293,8 +293,9 @@ router.post('/', async (req, res) => {
     });
     const { text: systemPrompt } = await getSystemPrompt({ currentDate });
 
-    // Read once: the model the tool names must be the one this request runs on,
-    // and the resolver can switch models between two reads.
+    // Read once and used by the chat call, its tool and the suggestions call: the
+    // model the tool names must be the one this request runs on, and the
+    // resolver can switch models between two reads.
     const chatModelId = getHaikuModelId();
 
     // Build tools — conditionally include search_documents
@@ -423,7 +424,7 @@ router.post('/', async (req, res) => {
 
           const suggestionsResult = await Promise.race([
             generateObject({
-              model: anthropic(getHaikuModelId()),
+              model: anthropic(chatModelId),
               system: suggestionsSystemPrompt,
               messages: recentMessages,
               schema: SuggestionsSchema,

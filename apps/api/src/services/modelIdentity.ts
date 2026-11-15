@@ -2,7 +2,7 @@ import { startObservation } from '@langfuse/tracing';
 import { z } from 'zod';
 import {
   ANTHROPIC_VERSION,
-  DEFAULT_LOOKUP_TIMEOUT_MS,
+  DEFAULT_LOOKUP_TIMEOUT_MS as LOOKUP_TIMEOUT_MS,
   MODELS_URL,
 } from '@/services/claudeModels.js';
 
@@ -67,8 +67,9 @@ const capitalizeWord = (word: string): string => word.charAt(0).toUpperCase() + 
  * Best-effort identity from the id alone, used when the lookup fails.
  * 'claude-haiku-5-5' gives 'Claude Haiku 5.5', and a dated id such as
  * 'claude-haiku-4-5-20251001' drops its snapshot date. The id comes from the
- * Haiku resolver or the validated HAIKU_MODEL_ID, not from a third party, so
- * it is not run through the shape check that guards a looked-up name.
+ * Haiku resolver (which read it from the same Anthropic Models API) or the
+ * validated HAIKU_MODEL_ID, so it is first-party text and is not run through
+ * the shape check that guards a looked-up name.
  */
 export const deriveModelIdentity = (modelId: string): ModelIdentity => {
   const words: string[] = [];
@@ -94,11 +95,11 @@ const lookUpDisplayName = async (
 ): Promise<string> => {
   const response = await fetchFn(`${MODELS_URL}/${encodeURIComponent(modelId)}`, {
     headers: { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
-    signal: AbortSignal.timeout(DEFAULT_LOOKUP_TIMEOUT_MS),
+    signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
   });
   if (!response.ok) {
-    // Release the connection: an unread body can hold the socket.
-    await response.body?.cancel();
+    // Release the connection: an unread body can hold the socket. A failed release must not replace the status as the reason.
+    await response.body?.cancel().catch(() => undefined);
     throw new Error(`Models API returned HTTP ${response.status}`);
   }
   let body: unknown;

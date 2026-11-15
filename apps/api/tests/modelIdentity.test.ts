@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const startObservationMock = vi.hoisted(() => vi.fn());
+vi.mock('@langfuse/tracing', () => ({ startObservation: startObservationMock }));
+
 import {
   ANTHROPIC_VERSION,
   DEFAULT_LOOKUP_TIMEOUT_MS,
@@ -36,6 +40,7 @@ const makeResolver = (fetchFn: typeof fetch, onFailure?: (id: string, reason: st
 };
 
 afterEach(() => {
+  startObservationMock.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -207,6 +212,51 @@ describe('model identity resolver', () => {
     expect(onFailure).toHaveBeenCalledTimes(1);
     expect(onFailure).toHaveBeenCalledWith(MODEL_ID, 'Models API returned HTTP 503');
     expect(warn.mock.calls.flat().join(' ')).toContain('failure report failed');
+  });
+
+  it('records a failed lookup as a Langfuse event by default, and a success as none', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const failing = makeResolver(vi.fn(async () => jsonResponse({}, 503)) as never);
+    await failing.resolve(MODEL_ID);
+
+    expect(startObservationMock).toHaveBeenCalledTimes(1);
+    expect(startObservationMock).toHaveBeenCalledWith(
+      'model-identity.lookup',
+      {
+        level: 'WARNING',
+        statusMessage: 'Models API returned HTTP 503',
+        output: { modelId: MODEL_ID, outcome: 'failed' },
+      },
+      { asType: 'event' },
+    );
+
+    startObservationMock.mockClear();
+    const ok = vi.fn(async () => jsonResponse(entry(MODEL_ID, 'Claude Haiku 5.5')));
+    await makeResolver(ok as unknown as typeof fetch).resolve(MODEL_ID);
+    expect(startObservationMock).not.toHaveBeenCalled();
+  });
+
+  it('releases an error response body, and a failed release keeps the status as the reason', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cancel = vi.fn();
+    const onFailure = vi.fn();
+    const respond = async () => new Response(new ReadableStream({ cancel }), { status: 503 });
+    await makeResolver(vi.fn(respond) as unknown as typeof fetch, onFailure).resolve(MODEL_ID);
+    expect(cancel).toHaveBeenCalledTimes(1);
+
+    const failingCancel = async () =>
+      new Response(
+        new ReadableStream({
+          cancel: () => {
+            throw new Error('cancel failed');
+          },
+        }),
+        { status: 503 },
+      );
+    await makeResolver(vi.fn(failingCancel) as unknown as typeof fetch, onFailure).resolve(
+      MODEL_ID,
+    );
+    expect(onFailure).toHaveBeenLastCalledWith(MODEL_ID, 'Models API returned HTTP 503');
   });
 
   it('does not report a successful lookup', async () => {

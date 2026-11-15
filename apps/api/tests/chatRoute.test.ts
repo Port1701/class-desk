@@ -84,6 +84,7 @@ afterEach(() => {
   streamTextCalls.length = 0;
   generateObjectCalls.length = 0;
   resolveModelIdentityMock.mockClear();
+  getHaikuModelIdMock.mockClear();
 });
 
 const postChat = async (): Promise<string> => {
@@ -141,8 +142,9 @@ describe('POST /chat model options', () => {
   });
 
   it('names the same model the chat call runs on when the resolver switches mid-request', async () => {
-    // The route must read the id once: a second read could see the new model.
-    getHaikuModelIdMock.mockReturnValueOnce('claude-haiku-a').mockReturnValueOnce('claude-haiku-b');
+    // The route must read the id once: a second read would see the new model
+    // (the default mock value) and name a different one.
+    getHaikuModelIdMock.mockReturnValueOnce('claude-haiku-a');
     resolveModelIdentityMock.mockResolvedValue({ name: 'x', maker: 'y', isVerified: true });
 
     await postChat();
@@ -150,7 +152,10 @@ describe('POST /chat model options', () => {
     const [chat] = streamTextCalls;
     const tools = chat.tools as Record<string, { execute: () => Promise<unknown> }>;
     await tools.get_model_info.execute();
+    expect(getHaikuModelIdMock).toHaveBeenCalledTimes(1);
     expect(chat.model).toEqual({ modelId: 'claude-haiku-a' });
+    expect(generateObjectCalls[0].model).toEqual({ modelId: 'claude-haiku-a' });
+    expect(resolveModelIdentityMock).toHaveBeenCalledTimes(1);
     expect(resolveModelIdentityMock).toHaveBeenLastCalledWith('claude-haiku-a');
   });
 
