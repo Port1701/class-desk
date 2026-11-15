@@ -315,6 +315,17 @@ API_SECRET_KEY=your_secret_here
 # No special prefix needed
 ```
 
+### The Chat Model's Name Comes From a Tool
+
+The chat system prompt names no model. The Haiku id is resolved at runtime (`apps/api/src/services/claudeModels.ts`), so a name written into the prompt goes stale, and a model's own belief about its version comes from training data. The prompt tells the model to call the `get_model_info` tool when a user asks what it is.
+
+- `buildGetModelInfoTool` in `apps/api/src/routes/chat.ts` is bound to the id the request's `streamText` call runs on, read once per request, so the tool and the call cannot name different models.
+- `apps/api/src/services/modelIdentity.ts` resolves that id through the Anthropic Models API (`GET /v1/models/{id}`, `display_name`). A verified name is cached for the process. A failed lookup (timeout after 5 s, error status, unexpected shape) logs a warning and returns a name derived from the id with `isVerified: false`, reused for 60 seconds so an outage costs one timeout a minute. The tool description tells the model to say it could not confirm the version in that case.
+- The looked-up name is third-party text that enters the model's context, so it must be a short run (at most 80 characters and 6 words) of letters, digits and product-name punctuation. This checks shape only.
+- `apps/api/tests/prompts.test.ts` fails if a model or maker name is written into `FALLBACK_SYSTEM_PROMPT`. Production serves the Langfuse prompt `classdesk-system`, so keep that one free of model names too (edit it in Langfuse).
+- The suggestions prompt still opens with "You are Claude": it cannot call a tool and never reaches a user.
+- A new tool also needs a status label in `buildToolLabel` (`apps/web/lib/textProcessing.ts`), or the chat UI shows its raw name.
+
 ### API Integration Pattern
 
 **Frontend calling Backend:**

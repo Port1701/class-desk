@@ -14,6 +14,7 @@ import promptsRouter from '@/routes/prompts.js';
 import { initClaudeModels } from '@/services/claudeModels.js';
 import { initEmbeddings } from '@/services/embeddings.js';
 import { closeLangfuse, getSystemPrompt, initLangfuse } from '@/services/langfuse.js';
+import { initModelIdentity } from '@/services/modelIdentity.js';
 import { closeRedis, initRedis } from '@/services/redis.js';
 import { initSupabase } from '@/services/supabase.js';
 import { initTelemetry, shutdownTelemetry } from '@/services/telemetry.js';
@@ -65,6 +66,7 @@ const startServer = async (): Promise<void> => {
     await initEmbeddings();
     // Never throws: a failed lookup leaves chat on the pinned fallback Haiku.
     await initClaudeModels(env.ANTHROPIC_API_KEY, { modelOverride: env.HAIKU_MODEL_ID });
+    initModelIdentity(env.ANTHROPIC_API_KEY);
 
     // Warm the system prompt cache
     await getSystemPrompt();

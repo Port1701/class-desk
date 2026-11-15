@@ -52,6 +52,11 @@ vi.mock('@/services/claudeModels.js', () => ({
   SUGGESTIONS_THINKING: { type: 'disabled' },
 }));
 
+const resolveModelIdentityMock = vi.hoisted(() => vi.fn());
+vi.mock('@/services/modelIdentity.js', () => ({
+  resolveModelIdentity: resolveModelIdentityMock,
+}));
+
 vi.mock('@/services/langfuse.js', () => ({
   getSystemPrompt: async () => ({ text: 'system' }),
   getSuggestionsPrompt: async () => ({ text: 'suggestions' }),
@@ -111,6 +116,25 @@ describe('POST /chat model options', () => {
     expect(chat).not.toHaveProperty('temperature');
     expect(chat).not.toHaveProperty('topP');
     expect(chat).not.toHaveProperty('topK');
+  });
+
+  it('offers get_model_info, which names the model this request runs on', async () => {
+    const resolved = { name: 'Claude Haiku 5.5', maker: 'Anthropic', isVerified: true };
+    resolveModelIdentityMock.mockResolvedValue(resolved);
+
+    await postChat();
+
+    const [chat] = streamTextCalls;
+    const tools = chat.tools as Record<
+      string,
+      { description: string; execute: () => Promise<unknown> }
+    >;
+    expect(await tools.get_model_info.execute()).toEqual(resolved);
+    // Looking up any other id would name a model that is not the one answering.
+    expect(resolveModelIdentityMock).toHaveBeenCalledWith('claude-haiku-test-id');
+    // The description is the only place the model learns to hedge a fallback name.
+    expect(tools.get_model_info.description).toContain('isVerified');
+    expect(tools.get_model_info.description).toContain('could not confirm');
   });
 
   it('runs suggestions on the resolved Haiku with thinking off and no sampling parameters', async () => {

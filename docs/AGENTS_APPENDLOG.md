@@ -74,3 +74,13 @@ This file tracks all significant decisions, implementations, and learnings throu
 **Context:** Follow-ups from review of the newest-Haiku change.
 **Rationale:** A rollback that needs no deploy; lookup failures visible where the LLM traces already are, since the repo has no error tracker; the template keeps no hardcoded identity (placeholders were deliberate since the open-source strip). The migration was formatted by 15.7.2 and the pin moved to 15.9.0, so every pre-commit run rewrote it; the reformat changes only the `CREATE TRIGGER` statement's keyword case and line breaks.
 **Impact:** None until a variable is set. Applying the old and the reformatted migration to a throwaway Postgres 17 + pgvector produced identical `pg_dump --schema-only` output.
+
+## 2026-11-14 19:53 PT - The chat model's name comes from a tool, not the prompt
+
+**Type:** Decision
+**Change:** New `get_model_info` chat tool (`apps/api/src/routes/chat.ts`) backed by `apps/api/src/services/modelIdentity.ts`. It returns `{ name, maker, isVerified }` for the model id the request's chat call runs on, read from the Anthropic Models API (`display_name`). The fallback system prompt no longer says "Claude Haiku, made by Anthropic"; it tells the model to call the tool and never state a model name from memory. The chat status line reads "Checking model" for the tool.
+**Context:** The newest-Haiku resolver changes the chat model without a deploy, so a model name written into a prompt goes stale. Mirrors BryanOwens012/boola-bot#93, adapted to this repo's direct Anthropic provider (that repo routes through OpenRouter and reads its public model list).
+**Rationale:** The tool looks the name up for the exact id used, so the answer has no lag after a model switch, and the prompt stays static. A failed lookup never fails a chat: it returns a name derived from the id marked unverified, reused for 60 seconds.
+**Alternatives Considered:** Injecting the name into the system prompt per request (rejected: the prompt would change whenever the model does); reusing the resolver's model list (rejected: its id is chosen separately from the name, and a pinned `HAIKU_MODEL_ID` skips the list entirely).
+**Impact:** One extra model step on a "which model are you?" turn, plus one small request per model id per process. The Langfuse-hosted prompt `classdesk-system` is what production serves and may still name Haiku 4.5; it has to be edited there (one-off step in the PR).
+**Learnings:** `apps/web` has no test runner, so the status label has no committed test.
