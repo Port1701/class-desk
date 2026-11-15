@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ANTHROPIC_VERSION, MODELS_URL } from '@/services/claudeModels.js';
+import {
+  ANTHROPIC_VERSION,
+  DEFAULT_LOOKUP_TIMEOUT_MS,
+  MODELS_URL,
+} from '@/services/claudeModels.js';
 import {
   createModelIdentityResolver,
   deriveModelIdentity,
   FAILURE_REUSE_MS,
-  LOOKUP_TIMEOUT_MS,
 } from '@/services/modelIdentity.js';
 
 const MODEL_ID = 'claude-haiku-5-5';
@@ -16,9 +19,14 @@ const jsonResponse = (body: unknown, status = 200): Response =>
 const entry = (id: string, displayName: string) => ({ id, display_name: displayName });
 
 /** A resolver whose clock the test moves, over a fetch the test supplies. */
-const makeResolver = (fetchFn: typeof fetch) => {
+const makeResolver = (fetchFn: typeof fetch, onFailure?: (id: string, reason: string) => void) => {
   let time = 1_000_000;
-  const resolver = createModelIdentityResolver({ apiKey: API_KEY, fetchFn, now: () => time });
+  const resolver = createModelIdentityResolver({
+    apiKey: API_KEY,
+    fetchFn,
+    now: () => time,
+    onFailure,
+  });
   return {
     ...resolver,
     advance: (ms: number) => {
@@ -112,11 +120,11 @@ describe('model identity resolver', () => {
       'not valid JSON',
       async () => new Response('<html>challenge</html>', { status: 200 }),
     ],
-    ['the body has no display name', 'no id and display_name', async () => jsonResponse({})],
+    ['the body has no display name', 'no display_name', async () => jsonResponse({})],
     [
-      'the API answers for another model',
-      'claude-opus-5-5 for claude-haiku-5-5',
-      async () => jsonResponse(entry('claude-opus-5-5', 'Claude Opus 5.5')),
+      'the display name has a trailing space',
+      'unexpected display name',
+      async () => jsonResponse(entry(MODEL_ID, 'Claude Haiku ')),
     ],
     [
       'the display name is not a plain product name',
@@ -151,6 +159,29 @@ describe('model identity resolver', () => {
     expect(warn.mock.calls[0]?.[0]).toContain(reason);
   });
 
+  it('names what an alias pin resolves to, though the API answers with the resolved id', async () => {
+    const fetchFn = vi.fn(async () => jsonResponse(entry('claude-haiku-5-5', 'Claude Haiku 5.5')));
+    const { resolve } = makeResolver(fetchFn as unknown as typeof fetch);
+
+    expect(await resolve('claude-haiku-latest')).toEqual({
+      name: 'Claude Haiku 5.5',
+      maker: 'Anthropic',
+      isVerified: true,
+    });
+  });
+
+  it('shares one failed lookup between concurrent questions', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchFn = vi.fn(() => Promise.reject(new Error('network down')));
+    const { resolve } = makeResolver(fetchFn as unknown as typeof fetch);
+
+    const results = await Promise.all([resolve(MODEL_ID), resolve(MODEL_ID), resolve(MODEL_ID)]);
+
+    expect(results.map((identity) => identity.isVerified)).toEqual([false, false, false]);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it('accepts a display name at the length and word limits', async () => {
     const atWordLimit = 'Claude Haiku 5.5 (extended thinking) preview';
     const fetchFn = vi.fn(async () => jsonResponse(entry(MODEL_ID, atWordLimit)));
@@ -163,6 +194,28 @@ describe('model identity resolver', () => {
     expect(
       await makeResolver(longFetch as unknown as typeof fetch).resolve('claude-long'),
     ).toMatchObject({ name: atLengthLimit, isVerified: true });
+  });
+
+  it('reports a failed lookup once, and a throwing report does not break the answer', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onFailure = vi.fn(() => {
+      throw new Error('report down');
+    });
+    const { resolve } = makeResolver(vi.fn(async () => jsonResponse({}, 503)) as never, onFailure);
+
+    expect(await resolve(MODEL_ID)).toMatchObject({ isVerified: false });
+    expect(onFailure).toHaveBeenCalledTimes(1);
+    expect(onFailure).toHaveBeenCalledWith(MODEL_ID, 'Models API returned HTTP 503');
+    expect(warn.mock.calls.flat().join(' ')).toContain('failure report failed');
+  });
+
+  it('does not report a successful lookup', async () => {
+    const onFailure = vi.fn();
+    const fetchFn = vi.fn(async () => jsonResponse(entry(MODEL_ID, 'Claude Haiku 5.5')));
+
+    await makeResolver(fetchFn as unknown as typeof fetch, onFailure).resolve(MODEL_ID);
+
+    expect(onFailure).not.toHaveBeenCalled();
   });
 
   it('never puts the API key in the warning it logs', async () => {
@@ -193,7 +246,7 @@ describe('model identity resolver', () => {
 
     const identity = await resolve(MODEL_ID);
 
-    expect(timeout).toHaveBeenCalledWith(LOOKUP_TIMEOUT_MS);
+    expect(timeout).toHaveBeenCalledWith(DEFAULT_LOOKUP_TIMEOUT_MS);
     expect(identity).toMatchObject({ name: 'Claude Haiku 5.5', isVerified: false });
   });
 
@@ -226,7 +279,8 @@ describe('resolveModelIdentity', () => {
     return import('@/services/modelIdentity.js');
   };
 
-  it('uses the unverified id-derived name before init, without a request', async () => {
+  it('uses the unverified id-derived name before init, with a warning and no request', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const { resolveModelIdentity } = await loadFreshModule();
 
@@ -236,6 +290,7 @@ describe('resolveModelIdentity', () => {
       isVerified: false,
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('looks the name up once init has given it a key', async () => {

@@ -46,8 +46,9 @@ vi.mock('@langfuse/tracing', () => ({
   propagateAttributes: async (_attrs: unknown, fn: () => unknown) => fn(),
 }));
 
+const getHaikuModelIdMock = vi.hoisted(() => vi.fn(() => 'claude-haiku-test-id'));
 vi.mock('@/services/claudeModels.js', () => ({
-  getHaikuModelId: () => 'claude-haiku-test-id',
+  getHaikuModelId: getHaikuModelIdMock,
   ROUTE_EFFORT_LEVEL: 'low',
   SUGGESTIONS_THINKING: { type: 'disabled' },
 }));
@@ -82,6 +83,7 @@ beforeAll(async () => {
 afterEach(() => {
   streamTextCalls.length = 0;
   generateObjectCalls.length = 0;
+  resolveModelIdentityMock.mockClear();
 });
 
 const postChat = async (): Promise<string> => {
@@ -131,10 +133,25 @@ describe('POST /chat model options', () => {
     >;
     expect(await tools.get_model_info.execute()).toEqual(resolved);
     // Looking up any other id would name a model that is not the one answering.
-    expect(resolveModelIdentityMock).toHaveBeenCalledWith('claude-haiku-test-id');
+    expect(resolveModelIdentityMock).toHaveBeenCalledTimes(1);
+    expect(resolveModelIdentityMock).toHaveBeenLastCalledWith('claude-haiku-test-id');
     // The description is the only place the model learns to hedge a fallback name.
     expect(tools.get_model_info.description).toContain('isVerified');
     expect(tools.get_model_info.description).toContain('could not confirm');
+  });
+
+  it('names the same model the chat call runs on when the resolver switches mid-request', async () => {
+    // The route must read the id once: a second read could see the new model.
+    getHaikuModelIdMock.mockReturnValueOnce('claude-haiku-a').mockReturnValueOnce('claude-haiku-b');
+    resolveModelIdentityMock.mockResolvedValue({ name: 'x', maker: 'y', isVerified: true });
+
+    await postChat();
+
+    const [chat] = streamTextCalls;
+    const tools = chat.tools as Record<string, { execute: () => Promise<unknown> }>;
+    await tools.get_model_info.execute();
+    expect(chat.model).toEqual({ modelId: 'claude-haiku-a' });
+    expect(resolveModelIdentityMock).toHaveBeenLastCalledWith('claude-haiku-a');
   });
 
   it('runs suggestions on the resolved Haiku with thinking off and no sampling parameters', async () => {
