@@ -225,6 +225,7 @@ User Query
   - `fetch_url` — Web page scraping with Redis caching (Cheerio)
   - `web_search` — Live internet search via Claude's native web search (limited to 3 uses per response)
   - `fill_form` — External form automation (e.g., Monday.com) with dry-run mode for testing
+  - `get_model_info` — Looks up the name of the model answering the request from the Anthropic Models API, so "which model are you?" gets the version that is actually running
 
 ### RAG Pipeline Architecture
 

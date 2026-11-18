@@ -12,6 +12,7 @@ import { generateEmbedding, isEmbeddingsAvailable } from '@/services/embeddings.
 import { type FetchUrlResult, fetchUrl } from '@/services/fetchUrl.js';
 import { type FormFillResult, fillMondayForm1, fillMondayForm2 } from '@/services/formFiller.js';
 import { getSuggestionsPrompt, getSystemPrompt } from '@/services/langfuse.js';
+import { type ModelIdentity, resolveModelIdentity } from '@/services/modelIdentity.js';
 import { getSupabaseClient } from '@/services/supabase.js';
 import { extractContextWindows, extractDates, extractKeywords } from '@/services/textSearch.js';
 
@@ -247,6 +248,21 @@ const buildFetchUrlTool = () =>
     },
   });
 
+// The model cannot know its own version: the Haiku id is resolved at runtime
+// and changes without a deploy, and what a model believes about itself comes
+// from training data. So the name is looked up when a user asks, for the same
+// id this request's chat call runs on, rather than written into the system
+// prompt.
+const buildGetModelInfoTool = (modelId: string) =>
+  tool({
+    description:
+      'Look up the name of the AI model that is answering right now and the company that makes it. ' +
+      'Call this whenever the user asks which AI model, LLM, or model version you are. Never answer that from memory. ' +
+      'When `isVerified` is false the lookup failed and `name` is read off the model id, so it may be wrong or lack the version: give it, and say you could not confirm the exact version.',
+    inputSchema: z.object({}),
+    execute: async (): Promise<ModelIdentity> => resolveModelIdentity(modelId),
+  });
+
 router.post('/', async (req, res) => {
   const { messages, sessionId } = req.body ?? {};
 
@@ -277,11 +293,17 @@ router.post('/', async (req, res) => {
     });
     const { text: systemPrompt } = await getSystemPrompt({ currentDate });
 
+    // Read once and used by the chat call, its tool and the suggestions call: the
+    // model the tool names must be the one this request runs on, and the
+    // resolver can switch models between two reads.
+    const chatModelId = getHaikuModelId();
+
     // Build tools — conditionally include search_documents
     const tools: ToolSet = {
       web_search: anthropic.tools.webSearch_20250305({ maxUses: 3 }),
       fetch_url: buildFetchUrlTool(),
       fill_form: buildFillFormTool(),
+      get_model_info: buildGetModelInfoTool(chatModelId),
       ...(isEmbeddingsAvailable() && {
         search_documents: buildSearchDocumentsTool(collectedSources),
       }),
@@ -294,7 +316,7 @@ router.post('/', async (req, res) => {
 
       await propagateAttributes(traceAttrs, async () => {
         const result = await streamText({
-          model: anthropic(getHaikuModelId()),
+          model: anthropic(chatModelId),
           system: systemPrompt,
           messages: messages as ModelMessage[],
           tools,
@@ -402,7 +424,7 @@ router.post('/', async (req, res) => {
 
           const suggestionsResult = await Promise.race([
             generateObject({
-              model: anthropic(getHaikuModelId()),
+              model: anthropic(chatModelId),
               system: suggestionsSystemPrompt,
               messages: recentMessages,
               schema: SuggestionsSchema,

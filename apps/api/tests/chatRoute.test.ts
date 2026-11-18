@@ -46,10 +46,16 @@ vi.mock('@langfuse/tracing', () => ({
   propagateAttributes: async (_attrs: unknown, fn: () => unknown) => fn(),
 }));
 
+const getHaikuModelIdMock = vi.hoisted(() => vi.fn(() => 'claude-haiku-test-id'));
 vi.mock('@/services/claudeModels.js', () => ({
-  getHaikuModelId: () => 'claude-haiku-test-id',
+  getHaikuModelId: getHaikuModelIdMock,
   ROUTE_EFFORT_LEVEL: 'low',
   SUGGESTIONS_THINKING: { type: 'disabled' },
+}));
+
+const resolveModelIdentityMock = vi.hoisted(() => vi.fn());
+vi.mock('@/services/modelIdentity.js', () => ({
+  resolveModelIdentity: resolveModelIdentityMock,
 }));
 
 vi.mock('@/services/langfuse.js', () => ({
@@ -77,6 +83,8 @@ beforeAll(async () => {
 afterEach(() => {
   streamTextCalls.length = 0;
   generateObjectCalls.length = 0;
+  resolveModelIdentityMock.mockClear();
+  getHaikuModelIdMock.mockClear();
 });
 
 const postChat = async (): Promise<string> => {
@@ -111,6 +119,44 @@ describe('POST /chat model options', () => {
     expect(chat).not.toHaveProperty('temperature');
     expect(chat).not.toHaveProperty('topP');
     expect(chat).not.toHaveProperty('topK');
+  });
+
+  it('offers get_model_info, which names the model this request runs on', async () => {
+    const resolved = { name: 'Claude Haiku 5.5', maker: 'Anthropic', isVerified: true };
+    resolveModelIdentityMock.mockResolvedValue(resolved);
+
+    await postChat();
+
+    const [chat] = streamTextCalls;
+    const tools = chat.tools as Record<
+      string,
+      { description: string; execute: () => Promise<unknown> }
+    >;
+    expect(await tools.get_model_info.execute()).toEqual(resolved);
+    // Looking up any other id would name a model that is not the one answering.
+    expect(resolveModelIdentityMock).toHaveBeenCalledTimes(1);
+    expect(resolveModelIdentityMock).toHaveBeenLastCalledWith('claude-haiku-test-id');
+    // The description is the only place the model learns to hedge a fallback name.
+    expect(tools.get_model_info.description).toContain('isVerified');
+    expect(tools.get_model_info.description).toContain('could not confirm');
+  });
+
+  it('names the same model the chat call runs on when the resolver switches mid-request', async () => {
+    // The route must read the id once: a second read would see the new model
+    // (the default mock value) and name a different one.
+    getHaikuModelIdMock.mockReturnValueOnce('claude-haiku-a');
+    resolveModelIdentityMock.mockResolvedValue({ name: 'x', maker: 'y', isVerified: true });
+
+    await postChat();
+
+    const [chat] = streamTextCalls;
+    const tools = chat.tools as Record<string, { execute: () => Promise<unknown> }>;
+    await tools.get_model_info.execute();
+    expect(getHaikuModelIdMock).toHaveBeenCalledTimes(1);
+    expect(chat.model).toEqual({ modelId: 'claude-haiku-a' });
+    expect(generateObjectCalls[0].model).toEqual({ modelId: 'claude-haiku-a' });
+    expect(resolveModelIdentityMock).toHaveBeenCalledTimes(1);
+    expect(resolveModelIdentityMock).toHaveBeenLastCalledWith('claude-haiku-a');
   });
 
   it('runs suggestions on the resolved Haiku with thinking off and no sampling parameters', async () => {

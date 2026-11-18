@@ -29,13 +29,14 @@ export const ROUTE_EFFORT_LEVEL = 'low';
 export const SUGGESTIONS_THINKING = { type: 'disabled' } as const;
 
 const HAIKU_LINE = 'haiku';
-const MODELS_URL = 'https://api.anthropic.com/v1/models';
+// Shared with services/modelIdentity.ts, which reads one model from the same API.
+export const MODELS_URL = 'https://api.anthropic.com/v1/models';
 // The version whose documented Models API response carries `line`,
 // `lifecycle` and `capabilities`, which eligibility depends on.
-const ANTHROPIC_VERSION = '2026-10-21';
+export const ANTHROPIC_VERSION = '2026-10-21';
 const PAGE_LIMIT = 1000;
 const MAX_PAGES = 10;
-const DEFAULT_LOOKUP_TIMEOUT_MS = 5_000;
+export const DEFAULT_LOOKUP_TIMEOUT_MS = 5_000;
 const INIT_DEADLINE_MS = 5_000;
 export const REFRESH_AFTER_SUCCESS_MS = 6 * 60 * 60 * 1000;
 export const RETRY_AFTER_FAILURE_MS = 10 * 60 * 1000;

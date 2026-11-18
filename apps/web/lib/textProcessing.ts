@@ -79,6 +79,9 @@ const buildToolLabel = (
     }
     return isCompleted ? 'Submitted form' : 'Submitting form';
   }
+  if (toolName === 'get_model_info') {
+    return isCompleted ? 'Checked model' : 'Checking model';
+  }
   return `${isCompleted ? 'Ran' : 'Running'} ${toolName}${queryPart}`;
 };
 
