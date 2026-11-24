@@ -400,7 +400,7 @@ User Query
 
 ### Prerequisites
 
-- Node.js 26 or higher (the exact version is in `.nvmrc`)
+- Node.js 26 (the exact version is in `.nvmrc`)
 - npm or yarn
 - [Supabase account](https://supabase.com) (free tier available)
 

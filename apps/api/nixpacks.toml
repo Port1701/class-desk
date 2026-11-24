@@ -1,7 +1,7 @@
 [phases.setup]
 nixPkgs = ["nodejs_26"]
-# Nixpacks' own Node map stops at 24, so pin a nixos-unstable commit that ships
-# nodejs_26 (26.13.1). Channel commits are binary-cached; a bare master commit is not.
+# Nixpacks' own Node map does not reach this major, so pin a nixos-unstable
+# commit that ships it. Channel commits are what the Nix binary cache serves.
 nixpkgsArchive = "2786a2a72088ecf32aea5b3ec52099e6a7cff78f"
 
 [phases.install]

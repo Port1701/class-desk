@@ -54,7 +54,8 @@ ClassDesk is a generic, open-source AI assistant template built with Next.js (fr
 - Prefer `const` over `let`, never use `var`
 - Use async/await instead of promise chains
 - Prefer functional array methods: `map`, `filter`, `reduce`
-- TypeScript 7 ships no JavaScript compiler API, so don't add a tool that imports `typescript` programmatically (typescript-eslint, ts-node). Biome is the linter, and `next build` type-checks through the local `tsc` CLI.
+- TypeScript 7 ships no JavaScript compiler API, so don't add a tool that imports `typescript` programmatically (typescript-eslint, ts-node). Biome is the linter, and `next build` in `apps/web` type-checks through the local `tsc` CLI.
+- In `apps/api`, modules resolve with `nodenext`, matching how Node runs the emitted ESM: relative and `@/` imports keep their `.js` extension, and a CommonJS package whose types declare `export default` is imported by its named export (`import { Redis } from 'ioredis'`); other default imports (`express`, `cors`) are fine. The typecheck enforces both. `apps/api/tests/compiledOutput.test.ts` builds the API and imports every module under plain Node, which catches what only runtime sees (an alias `tsc-alias` left unrewritten, a module that throws on load); Vitest's own transform and alias hide those.
 
 ### React Best Practices
 
@@ -73,7 +74,6 @@ ClassDesk is a generic, open-source AI assistant template built with Next.js (fr
 - Include proper **status codes** in responses
 - Add **comprehensive comments** for complex logic
 - Handle errors with **try/catch** and pass to error middleware
-- The API resolves modules with `nodenext`, matching how Node runs the emitted ESM: relative and `@/` imports keep their `.js` extension, and a CommonJS package whose types declare `export default` is imported by its named export (`import { Redis } from 'ioredis'`); other default imports (`express`, `cors`) are fine. `apps/api/tests/compiledOutput.test.ts` builds the API and imports every module under plain Node, which is the only check that sees these (Vitest's transform hides them).
 
 ### Component Development
 
@@ -274,7 +274,7 @@ Railway is configured as **infrastructure as code**: `.railway/railway.ts` (repo
 - `Redis`: a `database()` node running the official `redis` image with its volume on `/data`, the shape the dashboard's "Add Redis" provisions. The `redis()` helper provisions a different image and mount path, and a `service()` with the same image plans as delete-and-recreate, so use neither. The volume is not declared: Railway's database provisioning owns it, and a `volume()` line plans the live volume's region and size to whatever the file says.
 - Every dashboard variable, by name, `preserve()`d in `API_VARIABLES`: the value stays in Railway and never enters the repo. A listed name with no value in Railway plans nothing, so optional variables are listed too. `REDIS_URL` is a reference to the Redis node rather than a preserved value.
 
-**The Node version is `.nvmrc`, and Railway gets it from `apps/api/nixpacks.toml`.** `nixPkgs = ["nodejs_<major>"]` names the major, and `nixpkgsArchive` pins the nixpkgs commit it comes from, because Nixpacks' own Node map does not reach current majors. A Node bump changes `.nvmrc`, every `engines.node` (`>=<major>`), `nixPkgs`, and `nixpkgsArchive` together; `apps/api/tests/nodeVersionPins.test.ts` fails when they disagree. Take the archive from the head of the `nixos-unstable` branch (channel commits are binary-cached; a bare `master` commit compiles Node from source) and confirm it holds `pkgs/development/web/nodejs/v<major>.nix`. The archive supplies every Nix package in the setup phase, not only Node.
+**The Node version is `.nvmrc`, and Railway gets it from `apps/api/nixpacks.toml`.** `nixPkgs = ["nodejs_<major>"]` names the major, and `nixpkgsArchive` pins the nixpkgs commit it comes from, because Nixpacks' own Node map does not reach current majors. A Node bump changes `.nvmrc`, every `engines.node` (`<major>.x`, so no platform moves to a newer major on its own), `nixPkgs`, and `nixpkgsArchive` together; `apps/api/tests/nodeVersionPins.test.ts` fails when they disagree. Take the archive from the head of the `nixos-unstable` branch (channel commits are what the Nix binary cache serves; a bare `master` commit may not be cached) and confirm it holds `pkgs/development/web/nodejs/v<major>.nix`. The archive supplies every Nix package in the setup phase, not only Node.
 
 **Omit means delete.** A service, custom domain, or variable that exists in Railway but is absent from the file is destroyed on apply. Adding a variable in the dashboard means adding its name to `API_VARIABLES`; `railway config plan` reports the miss as `Delete variable API.<NAME>` and flags it destructive. Treat that line as a missing list entry, never as something to confirm past.
 
