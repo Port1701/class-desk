@@ -84,3 +84,12 @@ This file tracks all significant decisions, implementations, and learnings throu
 **Alternatives Considered:** Injecting the name into the system prompt per request (rejected: the prompt would change whenever the model does); reusing the resolver's model list (rejected: its id is chosen separately from the name, and a pinned `HAIKU_MODEL_ID` skips the list entirely).
 **Impact:** One extra model step on a "which model are you?" turn, plus one small request per model id per process. The Langfuse-hosted prompt `classdesk-system` is what production serves and may still name Haiku 4.5; it has to be edited there (one-off step in the PR).
 **Learnings:** `apps/web` has no test runner, so the status label has no committed test.
+
+## 2026-11-23 23:00 PT - Node 26 LTS and TypeScript 7
+
+**Type:** Implementation
+**Change:** Node 24.22.1 → 26.13.1 (`.nvmrc`, all three `engines.node`, `@types/node` ^26.6.6) and TypeScript ^5.9.3 → ^7.0.2 in `apps/api` and `apps/web`. `apps/api/tsconfig.json` moves from `moduleResolution: node` + `baseUrl` (both hard errors in TS 7) to `module`/`moduleResolution: nodenext` with `paths` relative to the tsconfig. `ioredis` is imported by its named `Redis` export. `apps/api/nixpacks.toml` installs `nodejs_26` from a pinned `nixos-unstable` archive. The web app's unused ESLint (`eslint`, `eslint-config-next`, `.eslintrc.json`, and a `lint` script Next 16 no longer supports) is removed.
+**Rationale:** Node 26 is the current LTS and Vercel's default. TS 7 has no JavaScript compiler API, and typescript-eslint pins `typescript <6.1`, so keeping ESLint would have meant an invalid peer tree or a TS 6 alias for a linter nothing ran (Biome is the linter). `nodenext` matches how Node runs the emitted ESM, where `bundler` would hide a missing `.js` extension. Nixpacks v1.41.0 maps Node only up to 24 and falls back to Node 18 above that, and none of its pinned nixpkgs archives contains `nodejs_26`.
+**Alternatives Considered:** `moduleResolution: bundler` (rejected: the API is not bundled); aliasing `typescript` to `@typescript/typescript6` for ESLint (rejected: ESLint was unused); switching the Railway builder to Railpack (deferred: a larger IaC change, and the archive pin keeps the existing builder).
+**Impact:** Typecheck, tests, Biome, both builds, and an API boot answering `/health` pass locally on Node 26.13.1. The Railway build on the pinned archive is proven only by the first deploy.
+**Learnings:** Next.js type-checks with the project's local `tsc` CLI when TS 7 is installed; no config is needed.
