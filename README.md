@@ -32,7 +32,7 @@ ClassDesk is an AI assistant built with Next.js, Express, and Claude. It consoli
 
 ### Technical Features
 
-- **⚡ Modern Frontend**: Next.js 16+ with React 19, TypeScript 5+, and Tailwind CSS
+- **⚡ Modern Frontend**: Next.js 16+ with React 19, TypeScript 7, and Tailwind CSS
 - **🚀 Robust Backend**: Express 5 with Node.js, TypeScript, and async/await support
 - **🛡️ Type Safety**: Zod validation for all API requests and responses
 - **💾 Database**: Supabase PostgreSQL with pgvector for embeddings
@@ -309,7 +309,7 @@ User Query
 
 - **Framework**: Next.js 16+
 - **UI Library**: React 19
-- **Language**: TypeScript 5+
+- **Language**: TypeScript 7
 - **Styling**: Tailwind CSS
 - **Authentication**: Supabase Auth (OAuth)
 - **Markdown**: React-Markdown with Remark/Rehype plugins
@@ -318,7 +318,7 @@ User Query
 ### Backend
 
 - **Framework**: Express 5
-- **Language**: TypeScript (Node.js 24.22.1+)
+- **Language**: TypeScript 7 (Node.js 26.13.1+)
 - **Database**: Supabase (PostgreSQL with pgvector)
 - **Cache**: Redis with ioredis
 - **Validation**: Zod for type-safe schemas
@@ -400,7 +400,7 @@ User Query
 
 ### Prerequisites
 
-- Node.js 24.22.1 or higher
+- Node.js 26.13.1 or higher (`.nvmrc`)
 - npm or yarn
 - [Supabase account](https://supabase.com) (free tier available)
 
