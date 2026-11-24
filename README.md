@@ -318,7 +318,7 @@ User Query
 ### Backend
 
 - **Framework**: Express 5
-- **Language**: TypeScript 7 (Node.js 26.13.1+)
+- **Language**: TypeScript 7 (Node.js 26 LTS)
 - **Database**: Supabase (PostgreSQL with pgvector)
 - **Cache**: Redis with ioredis
 - **Validation**: Zod for type-safe schemas
@@ -400,7 +400,7 @@ User Query
 
 ### Prerequisites
 
-- Node.js 26.13.1 or higher (`.nvmrc`)
+- Node.js 26 or higher (the exact version is in `.nvmrc`)
 - npm or yarn
 - [Supabase account](https://supabase.com) (free tier available)
 
